@@ -7,18 +7,21 @@
 #  ...as well as John Levine's rddmarc:
 #  http://www.taugh.com/rddmarc  
 ###################################################################
-
+#
 # Always be safe
 use strict;
 use warnings;
 
 # Use these modules
+use Getopt::Std;
 use Data::Dumper;
 use Mail::IMAPClient;
 use MIME::Parser;
 use MIME::Parser::Filer;
 use XML::Simple;
 use DBI;
+use Socket;
+use Socket6 qw(inet_ntop inet_pton AF_INET6);
 
 # Script Configuration Options
 my $debug = 0;
@@ -225,10 +228,25 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname",
                 }
                 #print "ip=$ip, count=$count, disp=$disp, r=$reason,";
                 #print "dkim=$dkim/$dkimresult, spf=$spf/$spfresult\n";
-                $dbh->do(qq{INSERT INTO rptrecord(serial,ip,rcount,disposition,reason,dkimdomain,dkimresult,spfdomain,spfresult)
-                  VALUES(?,INET_ATON(?),?,?,?,?,?,?,?)},undef, $serial,$ip,$count,$disp,$reason,$dkim,$dkimresult,$spf,$spfresult)
-                                or die "cannot insert record " . $dbh->{'mysql_error'};
-        }
+
+		# What type of IP address?
+		my ($nip, $iptype, $ipval);
+		print "ip=$ip\n";
+		if($nip = inet_pton(AF_INET, $ip)) {
+			$ipval = unpack "N", $nip;
+			$iptype = "ip";
+		} elsif($nip = inet_pton(AF_INET6, $ip)) {
+			$ipval = "X'" . unpack("H*",$nip) . "'";
+			$iptype = "ip6";
+		} else {
+			print "??? mystery ip $ip\n";
+			next;
+		}
+
+		$dbh->do(qq{INSERT INTO rptrecord(serial,$iptype,rcount,disposition,reason,dkimdomain,dkimresult,spfdomain,spfresult)
+			VALUES(?,$ipval,?,?,?,?,?,?,?)},undef,$serial,$count,$disp,$reason,$dkim,$dkimresult,$spf,$spfresult)
+			or die "cannot insert record " . $dbh->{'mysql_error'};
+	}
 
         if(ref $record eq "HASH") {
 		if($debug == 1){
