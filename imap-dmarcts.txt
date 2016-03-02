@@ -22,6 +22,7 @@ use XML::Simple;
 use DBI;
 use Socket;
 use Socket6 qw(inet_ntop inet_pton AF_INET6);
+use PerlIO::gzip;
 
 # Script Configuration Options
 my $debug = 0;
@@ -78,6 +79,7 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname",
 	##print $imap->message_string($msg). "\n";
      }
 	my $parser = new MIME::Parser;
+	my $isgzip = 0;
         $parser->output_dir("/tmp");
 	$parser->filer->ignore_filename(1);
 
@@ -100,6 +102,14 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname",
 
 		$location = $body->path;
 
+	} elsif ($mtype eq "application/gzip") {
+		if ($debug == 1) {
+		print "This is a GZIP file \n";
+		}
+
+		$location = $body->path;
+		$isgzip = 1;
+
         } elsif ($mtype eq "multipart/mixed") {
 		# at the moment, nease.net messages are multi-part, so we need to breakdown the attachments and find the zip
 		if ($debug == 1) {
@@ -113,7 +123,17 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname",
                         my $content_type = $part->mime_type;
  		        
 			# Find a zip file to work on...
-			if($part->mime_type eq "application/x-zip-compressed") {
+			if(lc $part->mime_type eq "application/gzip") {
+				$location = $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
+				$isgzip = 1;
+				if ($debug == 1) {
+					print $location;
+					print "\n";
+				}
+				last;
+			} elsif(lc $part->mime_type eq "application/x-zip-compressed"
+				or $part->mime_type eq "application/zip"
+				or lc $part->mime_type eq "application/octet-stream") {
 			
 				$location = $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
 
@@ -154,8 +174,14 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname",
         }
 	
 	# open the zip file and process the XML contained inside.
-        open(XML,"unzip -p " . $location . " |")
-                        or die "cannot unzip $location";
+	if($isgzip) {
+		open(XML, "<:gzip", $location)
+		or die "cannot ungzip $location";
+	} else {
+		open(XML,"unzip -p " . $location . " |")
+		or die "cannot unzip $location";
+	}
+
         my $xml = "";
 	$xml .= $_ while <XML>;
         close XML;
