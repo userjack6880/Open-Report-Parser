@@ -34,6 +34,7 @@ our $readfolder = 'Inbox';
 our $dbname = 'dmarc';
 our $dbuser = 'dmarc';
 our $dbpass = 'xxx';
+our $dbhost = 'xxx';
 
 # Override hardcoded script configuration options by local config file (does not need to exists)
 do "imap-dmarcts.conf";
@@ -51,7 +52,7 @@ my $imap = Mail::IMAPClient->new( Server  => $imapserver,
         # module uses eval, so we use $@ instead of $!
         or die "IMAP Failure: $@";
 
-my $dbh = DBI->connect("DBI:mysql:database=$dbname",
+my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
                             $dbuser, $dbpass)
         or die "Cannot connect to database\n";
         #Check, if the database contains needed tables and columns
