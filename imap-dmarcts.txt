@@ -21,7 +21,7 @@ use MIME::Parser::Filer;
 use XML::Simple;
 use DBI;
 use Socket;
-use Socket6 qw(inet_ntop inet_pton AF_INET6);
+use Socket6;
 use PerlIO::gzip;
 
 # Hardcoded script configuration options.
@@ -72,6 +72,11 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
 				"reportid"			, "varchar(255) NOT NULL",
 				"email"			, "varchar(255) NULL",
 				"extra_contact_info"	, "varchar(255) NULL",
+				"policy_adkim"		, "varchar(20) NULL",
+				"policy_aspf"		, "varchar(20) NULL",
+				"policy_p"			, "varchar(20) NULL",
+				"policy_sp"		, "varchar(20) NULL",
+				"policy_pct"		, "tinyint unsigned",				
 				],
 			additional_definitions 		=> "PRIMARY KEY (serial), UNIQUE KEY domain (domain,reportid)",
 			table_options			=> "",
@@ -90,6 +95,7 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
 				"spfresult"		, "enum('none','neutral','pass','fail','softfail','temperror','permerror')",
 				"spf_align"		, "enum('fail', 'pass') NOT NULL",
 				"dkim_align"		, "enum('fail', 'pass') NOT NULL",
+				"identifier_hfrom"	, "varchar(255)",
 				],
 			additional_definitions 		=> "KEY serial (serial,ip), KEY serial6 (serial,ip6)",
 			table_options			=> "ENGINE=MyISAM",
@@ -301,6 +307,11 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
         my $email = $xml{'report_metadata'}->{'email'};
         my $extra = $xml{'report_metadata'}->{'extra_contact_info'};	
         my $domain =  $xml{'policy_published'}->{'domain'};
+	my $policy_adkim = $xml{'policy_published'}->{'adkim'};
+	my $policy_aspf = $xml{'policy_published'}->{'aspf'};
+	my $policy_p = $xml{'policy_published'}->{'p'};
+	my $policy_sp = $xml{'policy_published'}->{'sp'};
+	my $policy_pct = $xml{'policy_published'}->{'pct'};
         # see if already stored
         my ($xorg,$xid) = $dbh->selectrow_array(qq{SELECT org,reportid FROM report WHERE reportid=?}, undef, $id);
         if($xorg) {
@@ -312,9 +323,9 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
                 next;
         }
 
-	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info)
-                VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?)};
-        $dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra)
+	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info,policy_adkim, policy_aspf, policy_p, policy_sp, policy_pct)
+                VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?,?,?,?,?,?)};
+        $dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct)
                         or die "cannot make report" . $dbh->errstr;
         my $serial = $dbh->{'mysql_insertid'} ||  $dbh->{'insertid'};
 	if($debug == 1){
@@ -331,6 +342,9 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
                 my $disp = $r{'row'}->{'policy_evaluated'}->{'disposition'};
                 my $dkim_align = $r{'row'}->{'policy_evaluated'}->{'dkim'};
                 my $spf_align = $r{'row'}->{'policy_evaluated'}->{'spf'};
+		
+		my $identifier_hfrom = $r{'identifiers'}->{'header_from'};
+		
                 my ($dkim, $dkimresult, $spf, $spfresult, $reason);
                 my $rp = $r{'auth_results'}->{'dkim'};
                 if(ref $rp eq "HASH") {
@@ -375,8 +389,8 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
 			next;
 		}
 
-		$dbh->do(qq{INSERT INTO rptrecord(serial,$iptype,rcount,disposition,spf_align,dkim_align,reason,dkimdomain,dkimresult,spfdomain,spfresult)
-			VALUES(?,$ipval,?,?,?,?,?,?,?,?,?)},undef,$serial,$count,$disp,$spf_align,$dkim_align,$reason,$dkim,$dkimresult,$spf,$spfresult)
+		$dbh->do(qq{INSERT INTO rptrecord(serial,$iptype,rcount,disposition,spf_align,dkim_align,reason,dkimdomain,dkimresult,spfdomain,spfresult,identifier_hfrom)
+			VALUES(?,$ipval,?,?,?,?,?,?,?,?,?,?)},undef,$serial,$count,$disp,$spf_align,$dkim_align,$reason,$dkim,$dkimresult,$spf,$spfresult,$identifier_hfrom)
 			or die "cannot insert record " . $dbh->{'mysql_error'};
 	}
 
