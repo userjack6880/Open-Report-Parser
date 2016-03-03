@@ -21,7 +21,7 @@ use MIME::Parser::Filer;
 use XML::Simple;
 use DBI;
 use Socket;
-use Socket6 qw(inet_ntop inet_pton AF_INET6);
+use Socket6;
 use PerlIO::gzip;
 
 # Hardcoded script configuration options.
