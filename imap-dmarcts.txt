@@ -24,16 +24,19 @@ use Socket;
 use Socket6 qw(inet_ntop inet_pton AF_INET6);
 use PerlIO::gzip;
 
-# Script Configuration Options
-my $debug = 0;
-my $imapserver = 'mail.example.com:143';
-my $imapuser = 'dmarcreports';
-my $imappass = 'xxx';
-my $mvfolder = 'processed';
-my $readfolder = 'Inbox';
-my $dbname = 'dmarc';
-my $dbuser = 'dmarc';
-my $dbpass = 'xxx';
+# Hardcoded script configuration options.
+our $debug = 0;
+our $imapserver = 'mail.example.com:143';
+our $imapuser = 'dmarcreports';
+our $imappass = 'xxx';
+our $mvfolder = 'processed';
+our $readfolder = 'Inbox';
+our $dbname = 'dmarc';
+our $dbuser = 'dmarc';
+our $dbpass = 'xxx';
+
+# Override hardcoded script configuration options by local config file (does not need to exists)
+do "imap-dmarcts.conf";
 
 ####################################################################
 ####################################################################
@@ -50,7 +53,105 @@ my $imap = Mail::IMAPClient->new( Server  => $imapserver,
 
 my $dbh = DBI->connect("DBI:mysql:database=$dbname",
                             $dbuser, $dbpass)
-            or die "Cannot connect to database\n";
+        or die "Cannot connect to database\n";
+        #Check, if the database contains needed tables and columns
+	# Check, if the database contains needed tables and columns.
+	# The idea is, that the user only has to create the database/database_user.
+	# All needed tables and columns are created automatically. Furthermore,
+	# if new columns are introduced, the user does not need to make any
+	# changes to the database himself.
+	my %tables = (
+		"report" => {
+			column_definitions 		=> [
+				"serial"			, "int(10) unsigned NOT NULL AUTO_INCREMENT",
+				"mindate"			, "timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+				"maxdate"			, "timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'",
+				"domain"			, "varchar(255) NOT NULL",
+				"org"				, "varchar(255) NOT NULL",
+				"reportid"			, "varchar(255) NOT NULL",
+				"email"			, "varchar(255) NULL",
+				"extra_contact_info"	, "varchar(255) NULL",
+				],
+			additional_definitions 		=> "PRIMARY KEY (serial), UNIQUE KEY domain (domain,reportid)",
+			table_options			=> "",
+			},
+		"rptrecord" =>{
+			column_definitions 		=> [
+				"serial"			, "int(10) unsigned NOT NULL",
+				"ip"				, "int(10) unsigned",
+				"ip6"				, "binary(16)",
+				"rcount"			, "int(10) unsigned NOT NULL",
+				"disposition"		, "enum('none','quarantine','reject')",
+				"reason"			, "varchar(255)",
+				"dkimdomain"		, "varchar(255)",
+				"dkimresult"		, "enum('none','pass','fail','neutral','policy','temperror','permerror')",
+				"spfdomain"		, "varchar(255)",
+				"spfresult"		, "enum('none','neutral','pass','fail','softfail','temperror','permerror')",
+				"spf_align"		, "enum('fail', 'pass') NOT NULL",
+				"dkim_align"		, "enum('fail', 'pass') NOT NULL",
+				],
+			additional_definitions 		=> "KEY serial (serial,ip), KEY serial6 (serial,ip6)",
+			table_options			=> "ENGINE=MyISAM",
+			},
+	);
+
+	# Get current tables in this DB.
+	my %db_tbl_exists = ();
+	for ( @{ $dbh->selectall_arrayref( "SHOW TABLES;") } ) {
+		$db_tbl_exists{$_->[0]} = 1; 
+	}
+
+	# Create missing tables and missing columns.
+	for my $table ( keys %tables ) {
+
+		if (!$db_tbl_exists{$table}) {
+
+			# Table does not exist, build CREATE TABLE cmd from tables hash.
+			print "Adding missing table <" . $table . "> to the database.\n";
+			my $sql_create_table = "CREATE TABLE " . $table . " (\n";
+			for (my $i=0; $i <= $#{$tables{$table}{"column_definitions"}}; $i+=2) {
+				my $col_name = $tables{$table}{"column_definitions"}[$i]; 
+				my $col_def = $tables{$table}{"column_definitions"}[$i+1]; 
+				# add comma if second or later entry
+				if ($i != 0) {
+					$sql_create_table .= ",\n";
+				}
+				$sql_create_table .= $col_name . " " .$col_def ;
+			}			
+			# Add additional_definitions, if defined.
+			if ($tables{$table}{"additional_definitions"} ne "") {
+				$sql_create_table .= ",\n" . $tables{$table}{"additional_definitions"};
+			}
+			# Add options.
+			$sql_create_table .= ") " . $tables{$table}{"table_options"} . ";";
+			# Create table.
+			##print $sql_create_table;
+			$dbh->do($sql_create_table);
+		} else {
+
+			#Table exists, get  current columns in this table from DB.
+			my %db_col_exists = ();
+			for ( @{ $dbh->selectall_arrayref( "SHOW COLUMNS FROM $table;") } ) { 
+				$db_col_exists{$_->[0]} = 1; 
+			};
+
+			# Check if all needed columns are present, if not add them at the desired position.
+			my $insert_pos = "FIRST";
+			for (my $i=0; $i <= $#{$tables{$table}{"column_definitions"}}; $i+=2) {
+				my $col_name = $tables{$table}{"column_definitions"}[$i]; 
+				my $col_def = $tables{$table}{"column_definitions"}[$i+1]; 
+				if (!$db_col_exists{$col_name}) {
+					# add column
+					my $sql_add_column = "ALTER TABLE $table ADD $col_name $col_def $insert_pos;";
+					##print $sql_add_column;
+					$dbh->do($sql_add_column);
+				}
+				$insert_pos = "AFTER $col_name";
+			}
+			
+		}
+	}
+
 ####################################################################
 
    if ($debug == 1) {
@@ -196,6 +297,8 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname",
         my $to = $xml{'report_metadata'}->{'date_range'}->{'end'};
         my $org = $xml{'report_metadata'}->{'org_name'};
         my $id = $xml{'report_metadata'}->{'report_id'};
+        my $email = $xml{'report_metadata'}->{'email'};
+        my $extra = $xml{'report_metadata'}->{'extra_contact_info'};	
         my $domain =  $xml{'policy_published'}->{'domain'};
         # see if already stored
         my ($xorg,$xid) = $dbh->selectrow_array(qq{SELECT org,reportid FROM report WHERE reportid=?}, undef, $id);
@@ -208,9 +311,9 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname",
                 next;
         }
 
-	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid)
-                VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?)};
-        $dbh->do($sql, undef, $from, $to, $domain, $org, $id)
+	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info)
+                VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?)};
+        $dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra)
                         or die "cannot make report" . $dbh->errstr;
         my $serial = $dbh->{'mysql_insertid'} ||  $dbh->{'insertid'};
 	if($debug == 1){
@@ -225,6 +328,8 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname",
                 #print "ip $ip\n";
                 my $count = $r{'row'}->{'count'};
                 my $disp = $r{'row'}->{'policy_evaluated'}->{'disposition'};
+                my $dkim_align = $r{'row'}->{'policy_evaluated'}->{'dkim'};
+                my $spf_align = $r{'row'}->{'policy_evaluated'}->{'spf'};
                 my ($dkim, $dkimresult, $spf, $spfresult, $reason);
                 my $rp = $r{'auth_results'}->{'dkim'};
                 if(ref $rp eq "HASH") {
@@ -269,8 +374,8 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname",
 			next;
 		}
 
-		$dbh->do(qq{INSERT INTO rptrecord(serial,$iptype,rcount,disposition,reason,dkimdomain,dkimresult,spfdomain,spfresult)
-			VALUES(?,$ipval,?,?,?,?,?,?,?)},undef,$serial,$count,$disp,$reason,$dkim,$dkimresult,$spf,$spfresult)
+		$dbh->do(qq{INSERT INTO rptrecord(serial,$iptype,rcount,disposition,spf_align,dkim_align,reason,dkimdomain,dkimresult,spfdomain,spfresult)
+			VALUES(?,$ipval,?,?,?,?,?,?,?,?,?)},undef,$serial,$count,$disp,$spf_align,$dkim_align,$reason,$dkim,$dkimresult,$spf,$spfresult)
 			or die "cannot insert record " . $dbh->{'mysql_error'};
 	}
 
