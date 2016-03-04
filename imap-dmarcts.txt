@@ -7,7 +7,7 @@
 #  ...as well as John Levine's rddmarc:
 #  http://www.taugh.com/rddmarc  
 ###################################################################
-#
+
 # Always be safe
 use strict;
 use warnings;
@@ -41,174 +41,176 @@ our $dbhost = '';
 # Override hardcoded script configuration options by local config file (does not need to exists)
 do "imap-dmarcts.conf";
 
+
 ####################################################################
 ####################################################################
 ####################################################################
 ####################################################################
 
-# Setup connections to servers.
 
+# Setup connections to IMAP server.
 my $imap = Mail::IMAPClient->new( Server  => $imapserver,
-				Ssl	=> $imapssl,
-                                User    => $imapuser,
-                              Password  => $imappass)
-        # module uses eval, so we use $@ instead of $!
-        or die "IMAP Failure: $@";
+		Ssl => $imapssl,
+		User => $imapuser,
+		Password => $imappass)
+	# module uses eval, so we use $@ instead of $!
+	or die "IMAP Failure: $@";
 
+
+# Setup connections to database server.
 my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
-                            $dbuser, $dbpass)
-        or die "Cannot connect to database\n";
-        #Check, if the database contains needed tables and columns
-	# Check, if the database contains needed tables and columns.
-	# The idea is, that the user only has to create the database/database_user.
-	# All needed tables and columns are created automatically. Furthermore,
-	# if new columns are introduced, the user does not need to make any
-	# changes to the database himself.
-	my %tables = (
-		"report" => {
-			column_definitions 		=> [
-				"serial"			, "int(10) unsigned NOT NULL AUTO_INCREMENT",
-				"mindate"			, "timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-				"maxdate"			, "timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'",
-				"domain"			, "varchar(255) NOT NULL",
-				"org"				, "varchar(255) NOT NULL",
-				"reportid"			, "varchar(255) NOT NULL",
-				"email"			, "varchar(255) NULL",
-				"extra_contact_info"	, "varchar(255) NULL",
-				"policy_adkim"		, "varchar(20) NULL",
-				"policy_aspf"		, "varchar(20) NULL",
-				"policy_p"			, "varchar(20) NULL",
-				"policy_sp"		, "varchar(20) NULL",
-				"policy_pct"		, "tinyint unsigned",				
-				],
-			additional_definitions 		=> "PRIMARY KEY (serial), UNIQUE KEY domain (domain,reportid)",
-			table_options			=> "",
-			},
-		"rptrecord" =>{
-			column_definitions 		=> [
-				"serial"			, "int(10) unsigned NOT NULL",
-				"ip"				, "int(10) unsigned",
-				"ip6"				, "binary(16)",
-				"rcount"			, "int(10) unsigned NOT NULL",
-				"disposition"		, "enum('none','quarantine','reject')",
-				"reason"			, "varchar(255)",
-				"dkimdomain"		, "varchar(255)",
-				"dkimresult"		, "enum('none','pass','fail','neutral','policy','temperror','permerror')",
-				"spfdomain"		, "varchar(255)",
-				"spfresult"		, "enum('none','neutral','pass','fail','softfail','temperror','permerror')",
-				"spf_align"		, "enum('fail', 'pass') NOT NULL",
-				"dkim_align"		, "enum('fail', 'pass') NOT NULL",
-				"identifier_hfrom"	, "varchar(255)",
-				],
-			additional_definitions 		=> "KEY serial (serial,ip), KEY serial6 (serial,ip6)",
-			table_options			=> "ENGINE=MyISAM",
-			},
-	);
+		$dbuser, $dbpass)
+	or die "Cannot connect to database\n";
+# Check, if the database contains needed tables and columns.
+# The idea is, that the user only has to create the database/database_user.
+# All needed tables and columns are created automatically. Furthermore,
+# if new columns are introduced, the user does not need to make any
+# changes to the database himself.
+my %tables = (
+	"report" => {
+		column_definitions 		=> [
+			"serial"			, "int(10) unsigned NOT NULL AUTO_INCREMENT",
+			"mindate"			, "timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+			"maxdate"			, "timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'",
+			"domain"			, "varchar(255) NOT NULL",
+			"org"				, "varchar(255) NOT NULL",
+			"reportid"			, "varchar(255) NOT NULL",
+			"email"			, "varchar(255) NULL",
+			"extra_contact_info"	, "varchar(255) NULL",
+			"policy_adkim"		, "varchar(20) NULL",
+			"policy_aspf"		, "varchar(20) NULL",
+			"policy_p"			, "varchar(20) NULL",
+			"policy_sp"		, "varchar(20) NULL",
+			"policy_pct"		, "tinyint unsigned",
+			],
+		additional_definitions 		=> "PRIMARY KEY (serial), UNIQUE KEY domain (domain,reportid)",
+		table_options			=> "",
+		},
+	"rptrecord" =>{
+		column_definitions 		=> [
+			"serial"			, "int(10) unsigned NOT NULL",
+			"ip"				, "int(10) unsigned",
+			"ip6"				, "binary(16)",
+			"rcount"			, "int(10) unsigned NOT NULL",
+			"disposition"		, "enum('none','quarantine','reject')",
+			"reason"			, "varchar(255)",
+			"dkimdomain"		, "varchar(255)",
+			"dkimresult"		, "enum('none','pass','fail','neutral','policy','temperror','permerror')",
+			"spfdomain"		, "varchar(255)",
+			"spfresult"		, "enum('none','neutral','pass','fail','softfail','temperror','permerror')",
+			"spf_align"		, "enum('fail', 'pass') NOT NULL",
+			"dkim_align"		, "enum('fail', 'pass') NOT NULL",
+			"identifier_hfrom"	, "varchar(255)",
+			],
+		additional_definitions 		=> "KEY serial (serial,ip), KEY serial6 (serial,ip6)",
+		table_options			=> "ENGINE=MyISAM",
+		},
+);
 
-	# Get current tables in this DB.
-	my %db_tbl_exists = ();
-	for ( @{ $dbh->selectall_arrayref( "SHOW TABLES;") } ) {
-		$db_tbl_exists{$_->[0]} = 1; 
-	}
+# Get current tables in this DB.
+my %db_tbl_exists = ();
+for ( @{ $dbh->selectall_arrayref( "SHOW TABLES;") } ) {
+	$db_tbl_exists{$_->[0]} = 1;
+}
 
-	# Create missing tables and missing columns.
-	for my $table ( keys %tables ) {
+# Create missing tables and missing columns.
+for my $table ( keys %tables ) {
 
-		if (!$db_tbl_exists{$table}) {
+	if (!$db_tbl_exists{$table}) {
 
-			# Table does not exist, build CREATE TABLE cmd from tables hash.
-			print "Adding missing table <" . $table . "> to the database.\n";
-			my $sql_create_table = "CREATE TABLE " . $table . " (\n";
-			for (my $i=0; $i <= $#{$tables{$table}{"column_definitions"}}; $i+=2) {
-				my $col_name = $tables{$table}{"column_definitions"}[$i]; 
-				my $col_def = $tables{$table}{"column_definitions"}[$i+1]; 
-				# add comma if second or later entry
-				if ($i != 0) {
-					$sql_create_table .= ",\n";
-				}
-				$sql_create_table .= $col_name . " " .$col_def ;
-			}			
-			# Add additional_definitions, if defined.
-			if ($tables{$table}{"additional_definitions"} ne "") {
-				$sql_create_table .= ",\n" . $tables{$table}{"additional_definitions"};
+		# Table does not exist, build CREATE TABLE cmd from tables hash.
+		print "Adding missing table <" . $table . "> to the database.\n";
+		my $sql_create_table = "CREATE TABLE " . $table . " (\n";
+		for (my $i=0; $i <= $#{$tables{$table}{"column_definitions"}}; $i+=2) {
+			my $col_name = $tables{$table}{"column_definitions"}[$i];
+			my $col_def = $tables{$table}{"column_definitions"}[$i+1];
+			# add comma if second or later entry
+			if ($i != 0) {
+				$sql_create_table .= ",\n";
 			}
-			# Add options.
-			$sql_create_table .= ") " . $tables{$table}{"table_options"} . ";";
-			# Create table.
-			##print $sql_create_table;
-			$dbh->do($sql_create_table);
-		} else {
-
-			#Table exists, get  current columns in this table from DB.
-			my %db_col_exists = ();
-			for ( @{ $dbh->selectall_arrayref( "SHOW COLUMNS FROM $table;") } ) { 
-				$db_col_exists{$_->[0]} = 1; 
-			};
-
-			# Check if all needed columns are present, if not add them at the desired position.
-			my $insert_pos = "FIRST";
-			for (my $i=0; $i <= $#{$tables{$table}{"column_definitions"}}; $i+=2) {
-				my $col_name = $tables{$table}{"column_definitions"}[$i]; 
-				my $col_def = $tables{$table}{"column_definitions"}[$i+1]; 
-				if (!$db_col_exists{$col_name}) {
-					# add column
-					my $sql_add_column = "ALTER TABLE $table ADD $col_name $col_def $insert_pos;";
-					##print $sql_add_column;
-					$dbh->do($sql_add_column);
-				}
-				$insert_pos = "AFTER $col_name";
-			}
-			
+			$sql_create_table .= $col_name . " " .$col_def;
 		}
+		# Add additional_definitions, if defined.
+		if ($tables{$table}{"additional_definitions"} ne "") {
+			$sql_create_table .= ",\n" . $tables{$table}{"additional_definitions"};
+		}
+		# Add options.
+		$sql_create_table .= ") " . $tables{$table}{"table_options"} . ";";
+		# Create table.
+		##print $sql_create_table;
+		$dbh->do($sql_create_table);
+	} else {
+
+		#Table exists, get  current columns in this table from DB.
+		my %db_col_exists = ();
+		for ( @{ $dbh->selectall_arrayref( "SHOW COLUMNS FROM $table;") } ) {
+			$db_col_exists{$_->[0]} = 1;
+		};
+
+		# Check if all needed columns are present, if not add them at the desired position.
+		my $insert_pos = "FIRST";
+		for (my $i=0; $i <= $#{$tables{$table}{"column_definitions"}}; $i+=2) {
+			my $col_name = $tables{$table}{"column_definitions"}[$i];
+			my $col_def = $tables{$table}{"column_definitions"}[$i+1];
+			if (!$db_col_exists{$col_name}) {
+				# add column
+				my $sql_add_column = "ALTER TABLE $table ADD $col_name $col_def $insert_pos;";
+				##print $sql_add_column;
+				$dbh->do($sql_add_column);
+			}
+			$insert_pos = "AFTER $col_name";
+		}
+		
 	}
+}
 
 ####################################################################
 
-   if ($debug == 1) {
-   # How many msgs are we going to process
-      print "There are ". $imap->message_count($readfolder).
-          " messages in the $readfolder folder.\n";
-   }
+if ($debug == 1) {
+	# How many msgs are we going to process
+	print "There are ". $imap->message_count($readfolder).
+		" messages in the $readfolder folder.\n";
+}
 
-   # Select the mailbox to get messages from
-   $imap->select($readfolder)
-        or die "IMAP Select Error: $!";
+# Select the mailbox to get messages from
+$imap->select($readfolder)
+	or die "IMAP Select Error: $!";
 
-   # Store each message as an array element
-   my @msgs = $imap->search('ALL')
-        or die "Couldn't get all messages\n";
+# Store each message as an array element
+my @msgs = $imap->search('ALL')
+	or die "Couldn't get all messages\n";
 
-   # Loop through messages
-   foreach my $msg (@msgs) {
-     if ($debug == 1) {
-	print "--------------------------------\n";
-	print "The Current Message UID is: ";
-	print $imap->message_uid($msg). "\n";
-	print "--------------------------------\n";
-	
-	print $imap->subject($msg). "\n";
-	##print $imap->message_string($msg). "\n";
-     }
+# Loop through messages
+foreach my $msg (@msgs) {
+	if ($debug == 1) {
+		print "--------------------------------\n";
+		print "The Current Message UID is: ";
+		print $imap->message_uid($msg). "\n";
+		print "--------------------------------\n";
+		
+		print $imap->subject($msg). "\n";
+		##print $imap->message_string($msg). "\n";
+	}
 	my $parser = new MIME::Parser;
 	my $isgzip = 0;
-        $parser->output_dir("/tmp");
+	$parser->output_dir("/tmp");
 	$parser->filer->ignore_filename(1);
 
-        my $ent = $parser->parse_data($imap->message_string($msg));
+	my $ent = $parser->parse_data($imap->message_string($msg));
 
 	my $body = $ent->bodyhandle;
-        my $mtype = $ent->mime_type;
-        my $subj = decode_mimewords($ent->get('subject'));
+	my $mtype = $ent->mime_type;
+	my $subj = decode_mimewords($ent->get('subject'));
 
 	if ($debug == 1) {
-        print " $subj\n";
+	print " $subj\n";
 	print " $mtype\n";
 	}
 	my $location;
-	
+
 	if(lc $mtype eq "application/zip") {
 		if ($debug == 1) {
-                print "This is a ZIP file \n";
+		print "This is a ZIP file \n";
 		}
 
 		$location = $body->path;
@@ -221,7 +223,7 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
 		$location = $body->path;
 		$isgzip = 1;
 
-        } elsif (lc $mtype eq "multipart/mixed") {
+	} elsif (lc $mtype eq "multipart/mixed") {
 		# at the moment, nease.net messages are multi-part, so we need to breakdown the attachments and find the zip
 		if ($debug == 1) {
 		print "This is a multipart attachment \n";
@@ -230,8 +232,8 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
 
 		my $num_parts = $ent->parts;
 		for (my $i=0; $i < $num_parts; $i++) {
-                        my $part = $ent->parts($i);
- 		        
+			my $part = $ent->parts($i);
+
 			# Find a zip file to work on...
 			if(lc $part->mime_type eq "application/gzip") {
 				$location = $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
@@ -265,24 +267,24 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
 		my $num_parts = $ent->parts;
 		for (my $i=0; $i < $num_parts; $i++) {
 			if($debug == 1) {	
-                        	print $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
+				print $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
 				print "\n";
 			}
-                        $ent->parts($i)->{ME_Bodyhandle}->purge;
+			$ent->parts($i)->{ME_Bodyhandle}->purge;
 
-                }
+		}
 		next;
 	}
-		
 
-        if(defined($location)) {
+
+	if(defined($location)) {
 		if ($debug == 1) {
-          		print "body is in " . $location . "\n";
+			print "body is in " . $location . "\n";
 		}
-        } else {
-                next;
-        }
-	
+	} else {
+		next;
+	}
+
 	# open the zip file and process the XML contained inside.
 	if($isgzip) {
 		open(XML, "<:gzip", $location)
@@ -292,90 +294,90 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
 		or die "cannot unzip $location";
 	}
 
-        my $xml = "";
+	my $xml = "";
 	$xml .= $_ while <XML>;
-        close XML;
+	close XML;
 
 	my $xs = XML::Simple->new();
 
-        my $ref = $xs->XMLin($xml);
-        my %xml = %{$ref};
-        #print join "\n",keys %xml;
-        #print "\n";
-        my $from = $xml{'report_metadata'}->{'date_range'}->{'begin'};
-        my $to = $xml{'report_metadata'}->{'date_range'}->{'end'};
-        my $org = $xml{'report_metadata'}->{'org_name'};
-        my $id = $xml{'report_metadata'}->{'report_id'};
-        my $email = $xml{'report_metadata'}->{'email'};
-        my $extra = $xml{'report_metadata'}->{'extra_contact_info'};	
-        my $domain =  $xml{'policy_published'}->{'domain'};
+	my $ref = $xs->XMLin($xml);
+	my %xml = %{$ref};
+	#print join "\n",keys %xml;
+	#print "\n";
+	my $from = $xml{'report_metadata'}->{'date_range'}->{'begin'};
+	my $to = $xml{'report_metadata'}->{'date_range'}->{'end'};
+	my $org = $xml{'report_metadata'}->{'org_name'};
+	my $id = $xml{'report_metadata'}->{'report_id'};
+	my $email = $xml{'report_metadata'}->{'email'};
+	my $extra = $xml{'report_metadata'}->{'extra_contact_info'};	
+	my $domain =  $xml{'policy_published'}->{'domain'};
 	my $policy_adkim = $xml{'policy_published'}->{'adkim'};
 	my $policy_aspf = $xml{'policy_published'}->{'aspf'};
 	my $policy_p = $xml{'policy_published'}->{'p'};
 	my $policy_sp = $xml{'policy_published'}->{'sp'};
 	my $policy_pct = $xml{'policy_published'}->{'pct'};
-        # see if already stored
-        my ($xorg,$xid) = $dbh->selectrow_array(qq{SELECT org,reportid FROM report WHERE reportid=?}, undef, $id);
-        if($xorg) {
-                print "Already have $xorg $xid, skipped\n";
+	# see if already stored
+	my ($xorg,$xid) = $dbh->selectrow_array(qq{SELECT org,reportid FROM report WHERE reportid=?}, undef, $id);
+	if($xorg) {
+		print "Already have $xorg $xid, skipped\n";
 		if($body){
-                $body->purge;
+			$body->purge;
 		}
-                $ent->purge;
-                next;
-        }
+		$ent->purge;
+		next;
+	}
 
 	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info,policy_adkim, policy_aspf, policy_p, policy_sp, policy_pct)
-                VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?,?,?,?,?,?)};
-        $dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct)
-                        or die "cannot make report" . $dbh->errstr;
-        my $serial = $dbh->{'mysql_insertid'} ||  $dbh->{'insertid'};
+			VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?,?,?,?,?,?)};
+	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct)
+			or die "cannot make report" . $dbh->errstr;
+	my $serial = $dbh->{'mysql_insertid'} ||  $dbh->{'insertid'};
 	if($debug == 1){
-        	print " serial $serial ";
+		print " serial $serial ";
 	}
-        my $record = $xml{'record'};
-        sub dorow($$) {
-                my ($serial,$recp) = @_;
-                my %r = %$recp;
+	my $record = $xml{'record'};
+	sub dorow($$) {
+		my ($serial,$recp) = @_;
+		my %r = %$recp;
 
-                my $ip = $r{'row'}->{'source_ip'};
-                #print "ip $ip\n";
-                my $count = $r{'row'}->{'count'};
-                my $disp = $r{'row'}->{'policy_evaluated'}->{'disposition'};
-                my $dkim_align = $r{'row'}->{'policy_evaluated'}->{'dkim'};
-                my $spf_align = $r{'row'}->{'policy_evaluated'}->{'spf'};
+		my $ip = $r{'row'}->{'source_ip'};
+		#print "ip $ip\n";
+		my $count = $r{'row'}->{'count'};
+		my $disp = $r{'row'}->{'policy_evaluated'}->{'disposition'};
+		my $dkim_align = $r{'row'}->{'policy_evaluated'}->{'dkim'};
+		my $spf_align = $r{'row'}->{'policy_evaluated'}->{'spf'};
 		
 		my $identifier_hfrom = $r{'identifiers'}->{'header_from'};
 		
-                my ($dkim, $dkimresult, $spf, $spfresult, $reason);
-                my $rp = $r{'auth_results'}->{'dkim'};
-                if(ref $rp eq "HASH") {
-                        $dkim = $rp->{'domain'};
-                        $dkim = undef if ref $dkim eq "HASH";
-                        $dkimresult = $rp->{'result'};
-                } else { # array
-                        # glom sigs together, report first result
-                        $dkim = join '/',map { my $d = $_->{'domain'}; ref $d eq "HASH"?"": $d } @$rp;
-                        $dkimresult = $rp->[0]->{'result'};
-                }
-                $rp = $r{'auth_results'}->{'spf'};
-                if(ref $rp eq "HASH") {
-                        $spf = $rp->{'domain'};
-                        $spfresult = $rp->{'result'};
-                } else { # array
-                        # glom domains together, report first result
-                        $spf = join '/',map { my $d = $_->{'domain'}; ref $d eq "HASH"? "": $d } @$rp;
-                        $spfresult = $rp->[0]->{'result'};
-                }
+		my ($dkim, $dkimresult, $spf, $spfresult, $reason);
+		my $rp = $r{'auth_results'}->{'dkim'};
+		if(ref $rp eq "HASH") {
+			$dkim = $rp->{'domain'};
+			$dkim = undef if ref $dkim eq "HASH";
+			$dkimresult = $rp->{'result'};
+		} else { # array
+			# glom sigs together, report first result
+			$dkim = join '/',map { my $d = $_->{'domain'}; ref $d eq "HASH"?"": $d } @$rp;
+			$dkimresult = $rp->[0]->{'result'};
+		}
+		$rp = $r{'auth_results'}->{'spf'};
+		if(ref $rp eq "HASH") {
+			$spf = $rp->{'domain'};
+			$spfresult = $rp->{'result'};
+		} else { # array
+			# glom domains together, report first result
+			$spf = join '/',map { my $d = $_->{'domain'}; ref $d eq "HASH"? "": $d } @$rp;
+			$spfresult = $rp->[0]->{'result'};
+		}
 
-		                $rp = $r{'row'}->{'policy_evaluated'}->{'reason'};
-                if(ref $rp eq "HASH") {
-                        $reason = $rp->{'type'};
-                } else {
-                        $reason = join '/',map { $_->{'type'} } @$rp;
-                }
-                #print "ip=$ip, count=$count, disp=$disp, r=$reason,";
-                #print "dkim=$dkim/$dkimresult, spf=$spf/$spfresult\n";
+		$rp = $r{'row'}->{'policy_evaluated'}->{'reason'};
+		if(ref $rp eq "HASH") {
+			$reason = $rp->{'type'};
+		} else {
+			$reason = join '/',map { $_->{'type'} } @$rp;
+		}
+		#print "ip=$ip, count=$count, disp=$disp, r=$reason,";
+		#print "dkim=$dkim/$dkimresult, spf=$spf/$spfresult\n";
 
 		# What type of IP address?
 		my ($nip, $iptype, $ipval);
@@ -396,38 +398,38 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
 			or die "cannot insert record " . $dbh->{'mysql_error'};
 	}
 
-        if(ref $record eq "HASH") {
+	if(ref $record eq "HASH") {
 		if($debug == 1){
-                	print "single record\n";
+			print "single record\n";
 		}
-                dorow($serial,$record);
-        } elsif(ref $record eq "ARRAY") {
+		dorow($serial,$record);
+	} elsif(ref $record eq "ARRAY") {
 		if($debug == 1){
-                	print "multi record\n";
+			print "multi record\n";
 		}
-                foreach my $row (@$record) {
-                        dorow($serial,$row);
-                }
-        } else {
-                print "mystery type " . ref($record) . "\n";
-        }
+		foreach my $row (@$record) {
+			dorow($serial,$row);
+		}
+	} else {
+		print "mystery type " . ref($record) . "\n";
+	}
 	if($body){
 		# Purge the temporary file from /tmp
-        	$body->purge;
+		$body->purge;
 		if($debug == 1){
 			print "in body";
 		}
 	}
-        $ent->purge;
+	$ent->purge;
 
 	# Move Message to processed folder
 	my $newuid = $imap->move($mvfolder, $imap->message_uid($msg))
 		or die "Could not move: $@\n"; 
-   }
+}
 
-   # Expunge and close the folder
-   $imap->expunge($readfolder);
-   $imap->close($readfolder);
+# Expunge and close the folder
+$imap->expunge($readfolder);
+$imap->close($readfolder);
 
- # We're all done with IMAP here
- $imap->logout()
+# We're all done with IMAP here
+$imap->logout()
