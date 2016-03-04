@@ -22,6 +22,7 @@ use XML::Simple;
 use DBI;
 use Socket;
 use Socket6;
+
 use PerlIO::gzip;
 
 # Hardcoded script configuration options.
@@ -195,7 +196,7 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
 
 	my $body = $ent->bodyhandle;
         my $mtype = $ent->mime_type;
-        my $subj = $ent->get('subject');
+        my $subj = decode_mimewords($ent->get('subject'));
 
 	if ($debug == 1) {
         print " $subj\n";
@@ -203,14 +204,14 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
 	}
 	my $location;
 	
-	if($mtype eq "application/zip") {
+	if(lc $mtype eq "application/zip") {
 		if ($debug == 1) {
                 print "This is a ZIP file \n";
 		}
 
 		$location = $body->path;
 
-	} elsif ($mtype eq "application/gzip") {
+	} elsif (lc $mtype eq "application/gzip") {
 		if ($debug == 1) {
 		print "This is a GZIP file \n";
 		}
@@ -218,7 +219,7 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
 		$location = $body->path;
 		$isgzip = 1;
 
-        } elsif ($mtype eq "multipart/mixed") {
+        } elsif (lc $mtype eq "multipart/mixed") {
 		# at the moment, nease.net messages are multi-part, so we need to breakdown the attachments and find the zip
 		if ($debug == 1) {
 		print "This is a multipart attachment \n";
@@ -228,7 +229,6 @@ my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
 		my $num_parts = $ent->parts;
 		for (my $i=0; $i < $num_parts; $i++) {
                         my $part = $ent->parts($i);
-                        my $content_type = $part->mime_type;
  		        
 			# Find a zip file to work on...
 			if(lc $part->mime_type eq "application/gzip") {
