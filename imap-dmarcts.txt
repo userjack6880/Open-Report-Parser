@@ -16,13 +16,13 @@ use warnings;
 use Getopt::Std;
 use Data::Dumper;
 use Mail::IMAPClient;
+use MIME::Words qw(decode_mimewords);
 use MIME::Parser;
 use MIME::Parser::Filer;
 use XML::Simple;
 use DBI;
 use Socket;
 use Socket6;
-
 use PerlIO::gzip;
 
 # Hardcoded script configuration options.
@@ -43,128 +43,24 @@ do "imap-dmarcts.conf";
 
 
 ####################################################################
+### main ###########################################################
 ####################################################################
-####################################################################
-####################################################################
+
+# Setup connection to IMAP server.
+my $imap = Mail::IMAPClient->new( Server => $imapserver,
+	Ssl => $imapssl,
+	User => $imapuser,
+	Password => $imappass)
+# module uses eval, so we use $@ instead of $!
+or die "IMAP Failure: $@";
 
 
-# Setup connections to IMAP server.
-my $imap = Mail::IMAPClient->new( Server  => $imapserver,
-		Ssl => $imapssl,
-		User => $imapuser,
-		Password => $imappass)
-	# module uses eval, so we use $@ instead of $!
-	or die "IMAP Failure: $@";
-
-
-# Setup connections to database server.
+# Setup connection to database server.
 my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
-		$dbuser, $dbpass)
-	or die "Cannot connect to database\n";
-# Check, if the database contains needed tables and columns.
-# The idea is, that the user only has to create the database/database_user.
-# All needed tables and columns are created automatically. Furthermore,
-# if new columns are introduced, the user does not need to make any
-# changes to the database himself.
-my %tables = (
-	"report" => {
-		column_definitions 		=> [
-			"serial"			, "int(10) unsigned NOT NULL AUTO_INCREMENT",
-			"mindate"			, "timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-			"maxdate"			, "timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'",
-			"domain"			, "varchar(255) NOT NULL",
-			"org"				, "varchar(255) NOT NULL",
-			"reportid"			, "varchar(255) NOT NULL",
-			"email"			, "varchar(255) NULL",
-			"extra_contact_info"	, "varchar(255) NULL",
-			"policy_adkim"		, "varchar(20) NULL",
-			"policy_aspf"		, "varchar(20) NULL",
-			"policy_p"			, "varchar(20) NULL",
-			"policy_sp"		, "varchar(20) NULL",
-			"policy_pct"		, "tinyint unsigned",
-			],
-		additional_definitions 		=> "PRIMARY KEY (serial), UNIQUE KEY domain (domain,reportid)",
-		table_options			=> "",
-		},
-	"rptrecord" =>{
-		column_definitions 		=> [
-			"serial"			, "int(10) unsigned NOT NULL",
-			"ip"				, "int(10) unsigned",
-			"ip6"				, "binary(16)",
-			"rcount"			, "int(10) unsigned NOT NULL",
-			"disposition"		, "enum('none','quarantine','reject')",
-			"reason"			, "varchar(255)",
-			"dkimdomain"		, "varchar(255)",
-			"dkimresult"		, "enum('none','pass','fail','neutral','policy','temperror','permerror')",
-			"spfdomain"		, "varchar(255)",
-			"spfresult"		, "enum('none','neutral','pass','fail','softfail','temperror','permerror')",
-			"spf_align"		, "enum('fail', 'pass') NOT NULL",
-			"dkim_align"		, "enum('fail', 'pass') NOT NULL",
-			"identifier_hfrom"	, "varchar(255)",
-			],
-		additional_definitions 		=> "KEY serial (serial,ip), KEY serial6 (serial,ip6)",
-		table_options			=> "ENGINE=MyISAM",
-		},
-);
+	$dbuser, $dbpass)
+or die "Cannot connect to database\n";
+checkDatabase($dbh);
 
-# Get current tables in this DB.
-my %db_tbl_exists = ();
-for ( @{ $dbh->selectall_arrayref( "SHOW TABLES;") } ) {
-	$db_tbl_exists{$_->[0]} = 1;
-}
-
-# Create missing tables and missing columns.
-for my $table ( keys %tables ) {
-
-	if (!$db_tbl_exists{$table}) {
-
-		# Table does not exist, build CREATE TABLE cmd from tables hash.
-		print "Adding missing table <" . $table . "> to the database.\n";
-		my $sql_create_table = "CREATE TABLE " . $table . " (\n";
-		for (my $i=0; $i <= $#{$tables{$table}{"column_definitions"}}; $i+=2) {
-			my $col_name = $tables{$table}{"column_definitions"}[$i];
-			my $col_def = $tables{$table}{"column_definitions"}[$i+1];
-			# add comma if second or later entry
-			if ($i != 0) {
-				$sql_create_table .= ",\n";
-			}
-			$sql_create_table .= $col_name . " " .$col_def;
-		}
-		# Add additional_definitions, if defined.
-		if ($tables{$table}{"additional_definitions"} ne "") {
-			$sql_create_table .= ",\n" . $tables{$table}{"additional_definitions"};
-		}
-		# Add options.
-		$sql_create_table .= ") " . $tables{$table}{"table_options"} . ";";
-		# Create table.
-		##print $sql_create_table;
-		$dbh->do($sql_create_table);
-	} else {
-
-		#Table exists, get  current columns in this table from DB.
-		my %db_col_exists = ();
-		for ( @{ $dbh->selectall_arrayref( "SHOW COLUMNS FROM $table;") } ) {
-			$db_col_exists{$_->[0]} = 1;
-		};
-
-		# Check if all needed columns are present, if not add them at the desired position.
-		my $insert_pos = "FIRST";
-		for (my $i=0; $i <= $#{$tables{$table}{"column_definitions"}}; $i+=2) {
-			my $col_name = $tables{$table}{"column_definitions"}[$i];
-			my $col_def = $tables{$table}{"column_definitions"}[$i+1];
-			if (!$db_col_exists{$col_name}) {
-				# add column
-				my $sql_add_column = "ALTER TABLE $table ADD $col_name $col_def $insert_pos;";
-				##print $sql_add_column;
-				$dbh->do($sql_add_column);
-			}
-			$insert_pos = "AFTER $col_name";
-		}
-		
-	}
-}
-
-####################################################################
 
 if ($debug == 1) {
 	# How many msgs are we going to process
@@ -191,33 +87,65 @@ foreach my $msg (@msgs) {
 		print $imap->subject($msg). "\n";
 		##print $imap->message_string($msg). "\n";
 	}
+
+	my %xml = getXMLFromMessage($imap->message_string($msg));
+	if (!%xml) {
+		next; # empty xml report data hash, nothing to work on
+	}
+
+	if (!storeXMLInDatabase(\%xml)) {
+		next;
+	}
+
+	# Move Message to processed folder
+	my $newuid = $imap->move($mvfolder, $imap->message_uid($msg))
+		or die "Could not move: $@\n";
+}
+
+# Expunge and close the folder
+$imap->expunge($readfolder);
+$imap->close($readfolder);
+
+# We're all done with IMAP here
+$imap->logout();
+
+
+
+
+####################################################################
+### subroutines ####################################################
+####################################################################
+
+sub getXMLFromMessage {
+	my $message = $_[0];
+
 	my $parser = new MIME::Parser;
-	my $isgzip = 0;
 	$parser->output_dir("/tmp");
 	$parser->filer->ignore_filename(1);
-
-	my $ent = $parser->parse_data($imap->message_string($msg));
+	my $ent = $parser->parse_data($message);
 
 	my $body = $ent->bodyhandle;
 	my $mtype = $ent->mime_type;
 	my $subj = decode_mimewords($ent->get('subject'));
 
 	if ($debug == 1) {
-	print " $subj\n";
-	print " $mtype\n";
+		print " $subj\n";
+		print " $mtype\n";
 	}
+
 	my $location;
+	my $isgzip = 0;
 
 	if(lc $mtype eq "application/zip") {
 		if ($debug == 1) {
-		print "This is a ZIP file \n";
+			print "This is a ZIP file \n";
 		}
 
 		$location = $body->path;
 
 	} elsif (lc $mtype eq "application/gzip") {
 		if ($debug == 1) {
-		print "This is a GZIP file \n";
+			print "This is a GZIP file \n";
 		}
 
 		$location = $body->path;
@@ -226,7 +154,7 @@ foreach my $msg (@msgs) {
 	} elsif (lc $mtype eq "multipart/mixed") {
 		# at the moment, nease.net messages are multi-part, so we need to breakdown the attachments and find the zip
 		if ($debug == 1) {
-		print "This is a multipart attachment \n";
+			print "This is a multipart attachment \n";
 		}
 		#print Dumper($ent->parts);
 
@@ -242,7 +170,7 @@ foreach my $msg (@msgs) {
 					print $location;
 					print "\n";
 				}
-				last;
+				last; # of parts
 			} elsif(lc $part->mime_type eq "application/x-zip-compressed"
 				or $part->mime_type eq "application/zip"
 				or lc $part->mime_type eq "application/octet-stream") {
@@ -259,11 +187,11 @@ foreach my $msg (@msgs) {
 					print $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
 					print "\n";
 				}
-				next;
+				next; # of parts
 			}
 		}
 	} else {
-		## This is mainly for the random email that might end-up in the inbox, and woult otherwise leave dangling mime parts in /tmp
+		## Clean up dangling mime parts in /tmp of messages without ZIP
 		my $num_parts = $ent->parts;
 		for (my $i=0; $i < $num_parts; $i++) {
 			if($debug == 1) {	
@@ -273,43 +201,55 @@ foreach my $msg (@msgs) {
 			$ent->parts($i)->{ME_Bodyhandle}->purge;
 
 		}
-		next;
 	}
 
+	# Default return value is an empty hash.
+	my %xml = ();
 
+	# If a ZIP has been found, extract XML and parse it into data hash.
 	if(defined($location)) {
 		if ($debug == 1) {
 			print "body is in " . $location . "\n";
 		}
-	} else {
-		next;
+
+		# Open the zip file and process the XML contained inside.
+		if($isgzip) {
+			open(XML, "<:gzip", $location)
+			or die "cannot ungzip $location";
+		} else {
+			open(XML,"unzip -p " . $location . " |")
+			or die "cannot unzip $location";
+		}
+
+		my $xml = "";
+		$xml .= $_ while <XML>;
+		close XML;
+
+		my $xs = XML::Simple->new();
+
+		my $ref = $xs->XMLin($xml);
+		%xml = %{$ref};
+		#print join "\n",keys %xml;
+		#print "\n";
 	}
 
-	# open the zip file and process the XML contained inside.
-	if($isgzip) {
-		open(XML, "<:gzip", $location)
-		or die "cannot ungzip $location";
-	} else {
-		open(XML,"unzip -p " . $location . " |")
-		or die "cannot unzip $location";
-	}
+	if($body) {$body->purge;}
+	if($ent) {$ent->purge;}
+	return %xml;
+}
 
-	my $xml = "";
-	$xml .= $_ while <XML>;
-	close XML;
 
-	my $xs = XML::Simple->new();
+####################################################################
 
-	my $ref = $xs->XMLin($xml);
-	my %xml = %{$ref};
-	#print join "\n",keys %xml;
-	#print "\n";
+sub storeXMLInDatabase {
+	my %xml = %{$_[0]}; # pass xml data by reference
+
 	my $from = $xml{'report_metadata'}->{'date_range'}->{'begin'};
 	my $to = $xml{'report_metadata'}->{'date_range'}->{'end'};
 	my $org = $xml{'report_metadata'}->{'org_name'};
 	my $id = $xml{'report_metadata'}->{'report_id'};
 	my $email = $xml{'report_metadata'}->{'email'};
-	my $extra = $xml{'report_metadata'}->{'extra_contact_info'};	
+	my $extra = $xml{'report_metadata'}->{'extra_contact_info'};
 	my $domain =  $xml{'policy_published'}->{'domain'};
 	my $policy_adkim = $xml{'policy_published'}->{'adkim'};
 	my $policy_aspf = $xml{'policy_published'}->{'aspf'};
@@ -320,11 +260,10 @@ foreach my $msg (@msgs) {
 	my ($xorg,$xid) = $dbh->selectrow_array(qq{SELECT org,reportid FROM report WHERE reportid=?}, undef, $id);
 	if($xorg) {
 		print "Already have $xorg $xid, skipped\n";
-		if($body){
-			$body->purge;
-		}
-		$ent->purge;
-		next;
+		# The old inline code had a next here, which skipped the file-moving-operation.
+		# To keep the same behaviour, we return false here - but i think it would be better
+		# to return true, so the file which has already been processed is moved out of the way?
+		return 0;
 	}
 
 	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info,policy_adkim, policy_aspf, policy_p, policy_sp, policy_pct)
@@ -390,7 +329,7 @@ foreach my $msg (@msgs) {
 			$iptype = "ip6";
 		} else {
 			print "??? mystery ip $ip\n";
-			next;
+			next; # of dorow
 		}
 
 		$dbh->do(qq{INSERT INTO rptrecord(serial,$iptype,rcount,disposition,spf_align,dkim_align,reason,dkimdomain,dkimresult,spfdomain,spfresult,identifier_hfrom)
@@ -413,23 +352,113 @@ foreach my $msg (@msgs) {
 	} else {
 		print "mystery type " . ref($record) . "\n";
 	}
-	if($body){
-		# Purge the temporary file from /tmp
-		$body->purge;
-		if($debug == 1){
-			print "in body";
-		}
-	}
-	$ent->purge;
-
-	# Move Message to processed folder
-	my $newuid = $imap->move($mvfolder, $imap->message_uid($msg))
-		or die "Could not move: $@\n"; 
 }
 
-# Expunge and close the folder
-$imap->expunge($readfolder);
-$imap->close($readfolder);
 
-# We're all done with IMAP here
-$imap->logout()
+####################################################################
+
+# Check, if the database contains needed tables and columns.
+# The idea is, that the user only has to create the database/database_user.
+# All needed tables and columns are created automatically. Furthermore,
+# if new columns are introduced, the user does not need to make any
+# changes to the database himself.
+sub checkDatabase {
+	my $dbh = $_[0];
+
+	my %tables = (
+		"report" => {
+			column_definitions 		=> [
+				"serial"		, "int(10) unsigned NOT NULL AUTO_INCREMENT",
+				"mindate"		, "timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+				"maxdate"		, "timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'",
+				"domain"		, "varchar(255) NOT NULL",
+				"org"			, "varchar(255) NOT NULL",
+				"reportid"		, "varchar(255) NOT NULL",
+				"email"			, "varchar(255) NULL",
+				"extra_contact_info"	, "varchar(255) NULL",
+				"policy_adkim"		, "varchar(20) NULL",
+				"policy_aspf"		, "varchar(20) NULL",
+				"policy_p"		, "varchar(20) NULL",
+				"policy_sp"		, "varchar(20) NULL",
+				"policy_pct"		, "tinyint unsigned",
+				],
+			additional_definitions 		=> "PRIMARY KEY (serial), UNIQUE KEY domain (domain,reportid)",
+			table_options			=> "",
+			},
+		"rptrecord" =>{
+			column_definitions 		=> [
+				"serial"		, "int(10) unsigned NOT NULL",
+				"ip"			, "int(10) unsigned",
+				"ip6"			, "binary(16)",
+				"rcount"		, "int(10) unsigned NOT NULL",
+				"disposition"		, "enum('none','quarantine','reject')",
+				"reason"		, "varchar(255)",
+				"dkimdomain"		, "varchar(255)",
+				"dkimresult"		, "enum('none','pass','fail','neutral','policy','temperror','permerror')",
+				"spfdomain"		, "varchar(255)",
+				"spfresult"		, "enum('none','neutral','pass','fail','softfail','temperror','permerror')",
+				"spf_align"		, "enum('fail', 'pass') NOT NULL",
+				"dkim_align"		, "enum('fail', 'pass') NOT NULL",
+				"identifier_hfrom"	, "varchar(255)",
+				],
+			additional_definitions 		=> "KEY serial (serial,ip), KEY serial6 (serial,ip6)",
+			table_options			=> "ENGINE=MyISAM",
+			},
+	);
+
+	# Get current tables in this DB.
+	my %db_tbl_exists = ();
+	for ( @{ $dbh->selectall_arrayref( "SHOW TABLES;") } ) {
+		$db_tbl_exists{$_->[0]} = 1;
+	}
+
+	# Create missing tables and missing columns.
+	for my $table ( keys %tables ) {
+
+		if (!$db_tbl_exists{$table}) {
+
+			# Table does not exist, build CREATE TABLE cmd from tables hash.
+			print "Adding missing table <" . $table . "> to the database.\n";
+			my $sql_create_table = "CREATE TABLE " . $table . " (\n";
+			for (my $i=0; $i <= $#{$tables{$table}{"column_definitions"}}; $i+=2) {
+				my $col_name = $tables{$table}{"column_definitions"}[$i];
+				my $col_def = $tables{$table}{"column_definitions"}[$i+1];
+				# add comma if second or later entry
+				if ($i != 0) {
+					$sql_create_table .= ",\n";
+				}
+				$sql_create_table .= $col_name . " " .$col_def;
+			}
+			# Add additional_definitions, if defined.
+			if ($tables{$table}{"additional_definitions"} ne "") {
+				$sql_create_table .= ",\n" . $tables{$table}{"additional_definitions"};
+			}
+			# Add options.
+			$sql_create_table .= ") " . $tables{$table}{"table_options"} . ";";
+			# Create table.
+			##print $sql_create_table;
+			$dbh->do($sql_create_table);
+		} else {
+
+			#Table exists, get  current columns in this table from DB.
+			my %db_col_exists = ();
+			for ( @{ $dbh->selectall_arrayref( "SHOW COLUMNS FROM $table;") } ) {
+				$db_col_exists{$_->[0]} = 1;
+			};
+
+			# Check if all needed columns are present, if not add them at the desired position.
+			my $insert_pos = "FIRST";
+			for (my $i=0; $i <= $#{$tables{$table}{"column_definitions"}}; $i+=2) {
+				my $col_name = $tables{$table}{"column_definitions"}[$i];
+				my $col_def = $tables{$table}{"column_definitions"}[$i+1];
+				if (!$db_col_exists{$col_name}) {
+					# add column
+					my $sql_add_column = "ALTER TABLE $table ADD $col_name $col_def $insert_pos;";
+					##print $sql_add_column;
+					$dbh->do($sql_add_column);
+				}
+				$insert_pos = "AFTER $col_name";
+			}
+		}
+	}
+}
