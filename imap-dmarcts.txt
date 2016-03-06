@@ -10,7 +10,7 @@
 
 
 # Usage:
-#    ./imap-dmarcts.pl [OPTIONS] [PATH]:
+#    ./imap-dmarcts.pl [OPTIONS] [PATH]
 #
 # If PATH is not provided, reports are read from an IMAP server, otherwise they are read
 # from PATH from local filesystem. PATH can be a filename of a single mime message file or
@@ -97,7 +97,7 @@ or die "Cannot connect to database\n";
 checkDatabase($dbh);
 
 
-# Process messages  based on $reports_source
+# Process messages based on $reports_source.
 if ($reports_source == TS_IMAP) {
 
 	# Setup connection to IMAP server.
@@ -109,20 +109,20 @@ if ($reports_source == TS_IMAP) {
 	or die "IMAP Failure: $@";
 
 	if ($debug == 1) {
-		# How many msgs are we going to process
+		# How many msgs are we going to process?
 		print "There are ". $imap->message_count($readfolder).
 			" messages in the $readfolder folder.\n";
 	}
 
-	# Select the mailbox to get messages from
+	# Select the mailbox to get messages from.
 	$imap->select($readfolder)
 		or die "IMAP Select Error: $!";
 
-	# Store each message as an array element
+	# Store each message as an array element.
 	my @msgs = $imap->search('ALL')
 		or die "Couldn't get all messages\n";
 
-	# Loop through IMAP messages
+	# Loop through IMAP messages.
 	foreach my $msg (@msgs) {
 		if ($debug == 1) {
 			print "--------------------------------\n";
@@ -131,50 +131,56 @@ if ($reports_source == TS_IMAP) {
 			print "--------------------------------\n";
 		}
 
-		my %xml = getXMLFromMessage($imap->message_string($msg));
+		my %xml = getXMLFromMessage($imap->message_string($msg),$msg);
 		if (!%xml) {
-			next; # empty xml report data hash, nothing to work on
+			next; # Empty xml report data hash, nothing to work on.
 		}
 
 		if (!storeXMLInDatabase(\%xml)) {
 			next;
 		}
 
-		# Move Message to processed folder
+		# Move Message to processed folder.
 		my $newuid = $imap->move($mvfolder, $imap->message_uid($msg))
 		or die "Could not move: $@\n";
 	}
 
-	# Expunge and close the folder
+	# Expunge and close the folder.
 	$imap->expunge($readfolder);
 	$imap->close($readfolder);
 
-	# We're all done with IMAP here
+	# We're all done with IMAP here.
 	$imap->logout();
 
 } else { # TS_MESSAGE_FILE or TS_XML_FILE
 
 	if ($debug == 1) {
-		# How many msgs are we going to process
+		# How many msgs are we going to process?
 		print "There are ".@ARGV. " messages to be processed.\n";
 	}
 
-	foreach my $msg (@ARGV) {
-
-		open FILE, $msg or die "Couldn't open file: $!";
-		my $message = join("", <FILE>);
-		close FILE;
+	foreach my $f (@ARGV) {
 
 		my %xml;
-		# get XML data either from message or directly from XML file
 		if ($reports_source ==  TS_MESSAGE_FILE) {
-			%xml = getXMLFromMessage($message);
+			# Get XML data from mime message.
+			open FILE, $f or die "Couldn't open file: $!";
+			my $filecontent = join("", <FILE>);
+			close FILE;
+			%xml = getXMLFromMessage($filecontent,$f);
 		} else {
-			%xml = ();
+			# Get XML data from XML file directly, but test if parser can read the file.
+			eval {
+				my $xs = XML::Simple->new();
+				%xml = %{$xs->XMLin($f)}
+			}
+			or do {
+				print "File <$f> does not seem to be an XML file, skipped.\n";
+			};
 		}
 
 		if (!%xml) {
-			next; # empty xml report data hash, nothing to work on
+			next; # Empty xml report data hash, nothing to work on.
 		}
 
 		if (!storeXMLInDatabase(\%xml)) {
@@ -189,11 +195,13 @@ if ($reports_source == TS_IMAP) {
 ### subroutines ####################################################
 ####################################################################
 
-# Walk through a mime message and return a hash containing the XML fields of the first
-# ZIPed XML file embedded into the message. XML itself is not checked to a valid DMARC report.
+# Walk through a mime message and return a hash containing the
+# XML fields of the first ZIPed XML file embedded into the message.
+# The XML itself is not checked to be a valid DMARC report.
 sub getXMLFromMessage {
 	my $message = $_[0];
-
+	my $messagefile = $_[1];
+	
 	my $parser = new MIME::Parser;
 	$parser->output_dir("/tmp");
 	$parser->filer->ignore_filename(1);
@@ -204,7 +212,7 @@ sub getXMLFromMessage {
 	my $subj = decode_mimewords($ent->get('subject'));
 
 	if ($debug == 1) {
-		print "Subject: $subj"; # Subject always contains \n.
+		print "Subject: $subj"; # Subject always contains \n, no need to print one.
 		print "MimeType: $mtype\n";
 	}
 
@@ -227,7 +235,7 @@ sub getXMLFromMessage {
 		$isgzip = 1;
 
 	} elsif (lc $mtype eq "multipart/mixed") {
-		# at the moment, nease.net messages are multi-part, so we need to breakdown the attachments and find the zip
+		# At the moment, nease.net messages are multi-part, so we need to breakdown the attachments and find the zip.
 		if ($debug == 1) {
 			print "This is a multipart attachment \n";
 		}
@@ -266,7 +274,7 @@ sub getXMLFromMessage {
 			}
 		}
 	} else {
-		## Clean up dangling mime parts in /tmp of messages without ZIP
+		## Clean up dangling mime parts in /tmp of messages without ZIP.
 		my $num_parts = $ent->parts;
 		for (my $i=0; $i < $num_parts; $i++) {
 			if($debug == 1) {	
@@ -306,6 +314,8 @@ sub getXMLFromMessage {
 		%xml = %{$ref};
 		#print join "\n",keys %xml;
 		#print "\n";
+	} else {
+		print "Could not find an embedded ZIP in message <$messagefile>.\n"; 
 	}
 
 	if($body) {$body->purge;}
@@ -316,9 +326,10 @@ sub getXMLFromMessage {
 
 ####################################################################
 
-# Extract fields from XML report data hash and store them  into the database.
+# Extract fields from the XML report data hash and store them
+# into the database.
 sub storeXMLInDatabase {
-	my %xml = %{$_[0]}; # pass xml data by reference
+	my %xml = %{$_[0]}; # Pass xml data by reference.
 
 	my $from = $xml{'report_metadata'}->{'date_range'}->{'begin'};
 	my $to = $xml{'report_metadata'}->{'date_range'}->{'end'};
