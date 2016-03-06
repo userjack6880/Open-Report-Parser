@@ -142,7 +142,7 @@ if ($reports_source == TS_IMAP) {
 
 		# Move Message to processed folder.
 		my $newuid = $imap->move($mvfolder, $imap->message_uid($msg))
-		or die "Could not move: $@\n";
+		or print "Could not move IMAP message: $@\n";
 	}
 
 	# Expunge and close the folder.
@@ -164,10 +164,14 @@ if ($reports_source == TS_IMAP) {
 		my %xml;
 		if ($reports_source ==  TS_MESSAGE_FILE) {
 			# Get XML data from mime message.
-			open FILE, $f or die "Couldn't open file: $!";
-			my $filecontent = join("", <FILE>);
-			close FILE;
-			%xml = getXMLFromMessage($filecontent,$f);
+			if (open FILE, $f)
+			{
+				my $filecontent = join("", <FILE>);
+				close FILE;
+				%xml = getXMLFromMessage($filecontent,$f);
+			} else {
+				print "Could not open file <$f>: $!. Skipped.\n";
+			}
 		} else {
 			# Get XML data from XML file directly, but test if parser can read the file.
 			eval {
@@ -175,7 +179,7 @@ if ($reports_source == TS_IMAP) {
 				%xml = %{$xs->XMLin($f)}
 			}
 			or do {
-				print "File <$f> does not seem to be an XML file, skipped.\n";
+				print "File <$f> does not seem to be an XML file. Skipped.\n";
 			};
 		}
 
@@ -186,6 +190,8 @@ if ($reports_source == TS_IMAP) {
 		if (!storeXMLInDatabase(\%xml)) {
 			next;
 		}
+
+		# Add logic to move processed files?
 	}
 }
 
@@ -296,26 +302,39 @@ sub getXMLFromMessage {
 		}
 
 		# Open the zip file and process the XML contained inside.
+		my $unzip = "";
 		if($isgzip) {
 			open(XML, "<:gzip", $location)
-			or die "cannot ungzip $location";
+			or $unzip = "ungzip";
 		} else {
 			open(XML,"unzip -p " . $location . " |")
-			or die "cannot unzip $location";
+			or $unzip = "unzip"; # Will never happen.
+
+			# Sadly unzip -p never failes, but we can check if the filehandle points
+			# to an empty file and pretend it did not open/failed.
+			if (eof XML) {
+				$unzip = "unzip";
+				close XML;
+			}
 		}
 
-		my $xml = "";
-		$xml .= $_ while <XML>;
-		close XML;
-
-		my $xs = XML::Simple->new();
-
-		my $ref = $xs->XMLin($xml);
-		%xml = %{$ref};
-		#print join "\n",keys %xml;
-		#print "\n";
+		# Read XML if possible (if open)
+		if ($unzip eq "") {
+			eval {
+				my $xml = join("", <XML>);
+				my $xs = XML::Simple->new();
+				%xml = %{$xs->XMLin($xml)};
+				#print join "\n",keys %xml;
+				#print "\n";
+			} or do {
+				print "The XML found in ZIP file (temp. location: <$location>) extracted from <$messagefile> does not seem to be valid XML. Skipped.\n";
+			};
+			close XML;
+		} else {
+			print "Failed to $unzip ZIP file (temp. location: <$location>) extracted from <$messagefile>. Skipped.\n";
+		}
 	} else {
-		print "Could not find an embedded ZIP in message <$messagefile>.\n"; 
+		print "Could not find an embedded ZIP in message <$messagefile>. Skipped.\n";
 	}
 
 	if($body) {$body->purge;}
@@ -355,8 +374,12 @@ sub storeXMLInDatabase {
 
 	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info,policy_adkim, policy_aspf, policy_p, policy_sp, policy_pct)
 			VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?,?,?,?,?,?)};
-	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct)
-			or die "cannot make report" . $dbh->errstr;
+	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct);
+	if ($dbh->errstr) {
+		print "Cannot add report to database (". $dbh->errstr ."). Skipped.\n";
+		return 0;
+	}
+
 	my $serial = $dbh->{'mysql_insertid'} ||  $dbh->{'insertid'};
 	if($debug == 1){
 		print " serial $serial ";
@@ -420,8 +443,11 @@ sub storeXMLInDatabase {
 		}
 
 		$dbh->do(qq{INSERT INTO rptrecord(serial,$iptype,rcount,disposition,spf_align,dkim_align,reason,dkimdomain,dkimresult,spfdomain,spfresult,identifier_hfrom)
-			VALUES(?,$ipval,?,?,?,?,?,?,?,?,?,?)},undef,$serial,$count,$disp,$spf_align,$dkim_align,$reason,$dkim,$dkimresult,$spf,$spfresult,$identifier_hfrom)
-			or die "cannot insert record " . $dbh->{'mysql_error'};
+			VALUES(?,$ipval,?,?,?,?,?,?,?,?,?,?)},undef,$serial,$count,$disp,$spf_align,$dkim_align,$reason,$dkim,$dkimresult,$spf,$spfresult,$identifier_hfrom);
+		if ($dbh->errstr) {
+			print "Cannot add report data to database (". $dbh->errstr ."). Skipped.\n";
+			return 0;
+		}
 	}
 
 	if(ref $record eq "HASH") {
@@ -439,6 +465,8 @@ sub storeXMLInDatabase {
 	} else {
 		print "mystery type " . ref($record) . "\n";
 	}
+
+	return 1;
 }
 
 
