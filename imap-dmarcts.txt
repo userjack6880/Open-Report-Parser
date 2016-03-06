@@ -8,6 +8,22 @@
 #  http://www.taugh.com/rddmarc  
 ###################################################################
 
+
+# Usage:
+#    ./imap-dmarcts.pl [OPTIONS] [PATH]
+#
+# If PATH is not provided, reports are read from an IMAP server, otherwise they are read
+# from PATH from local filesystem. PATH can be a filename of a single mime message file or
+# multiple mime message files - wildcard expression are allowed.
+#
+# The following options are always allowed:
+#  -d : Print debug info.
+#  -r : Replace existing reports rather than failing.
+#
+# If a PATH is given, the following option is also allowed:
+#  -x : Files specified by PATH are XML report files, rather than mime messages containing the XML report files.
+
+
 # Always be safe
 use strict;
 use warnings;
@@ -41,18 +57,37 @@ our $dbhost = '';
 # Override hardcoded script configuration options by local config file (does not need to exists)
 do "imap-dmarcts.conf";
 
+# Get command line options.
+my %options = ();
+getopts('drx', \%options);
+
+# Set default behaviour.
+use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2 };
+our $reports_source = TS_IMAP;
+our $reports_replace = 0;
+
+# Check for further command line arguments (interpreted as PATH)
+if ($ARGV[0]) {
+	$reports_source = TS_MESSAGE_FILE;
+}
+
+# Evaluate command line options
+if (exists $options{r}) {$reports_replace = 1;}
+if (exists $options{d}) {$debug = 1;}
+if (exists $options{x}) {
+	if ($reports_source == TS_IMAP) {
+		print "The -x OPTION requires a PATH.\n";
+		exit;
+	} else {
+		$reports_source = TS_XML_FILE;
+	}
+}
+
+
 
 ####################################################################
 ### main ###########################################################
 ####################################################################
-
-# Setup connection to IMAP server.
-my $imap = Mail::IMAPClient->new( Server => $imapserver,
-	Ssl => $imapssl,
-	User => $imapuser,
-	Password => $imappass)
-# module uses eval, so we use $@ instead of $!
-or die "IMAP Failure: $@";
 
 
 # Setup connection to database server.
@@ -62,53 +97,103 @@ or die "Cannot connect to database\n";
 checkDatabase($dbh);
 
 
-if ($debug == 1) {
-	# How many msgs are we going to process
-	print "There are ". $imap->message_count($readfolder).
-		" messages in the $readfolder folder.\n";
-}
+# Process messages based on $reports_source.
+if ($reports_source == TS_IMAP) {
 
-# Select the mailbox to get messages from
-$imap->select($readfolder)
-	or die "IMAP Select Error: $!";
+	# Setup connection to IMAP server.
+	my $imap = Mail::IMAPClient->new( Server => $imapserver,
+		Ssl => $imapssl,
+		User => $imapuser,
+		Password => $imappass)
+	# module uses eval, so we use $@ instead of $!
+	or die "IMAP Failure: $@";
 
-# Store each message as an array element
-my @msgs = $imap->search('ALL')
-	or die "Couldn't get all messages\n";
-
-# Loop through messages
-foreach my $msg (@msgs) {
 	if ($debug == 1) {
-		print "--------------------------------\n";
-		print "The Current Message UID is: ";
-		print $imap->message_uid($msg). "\n";
-		print "--------------------------------\n";
-		
-		print $imap->subject($msg). "\n";
-		##print $imap->message_string($msg). "\n";
+		# How many msgs are we going to process?
+		print "There are ". $imap->message_count($readfolder).
+			" messages in the $readfolder folder.\n";
 	}
 
-	my %xml = getXMLFromMessage($imap->message_string($msg));
-	if (!%xml) {
-		next; # empty xml report data hash, nothing to work on
+	# Select the mailbox to get messages from.
+	$imap->select($readfolder)
+		or die "IMAP Select Error: $!";
+
+	# Store each message as an array element.
+	my @msgs = $imap->search('ALL')
+		or die "Couldn't get all messages\n";
+
+	# Loop through IMAP messages.
+	foreach my $msg (@msgs) {
+		if ($debug == 1) {
+			print "--------------------------------\n";
+			print "The Current Message UID is: ";
+			print $imap->message_uid($msg). "\n";
+			print "--------------------------------\n";
+		}
+
+		my %xml = getXMLFromMessage($imap->message_string($msg),$msg);
+		if (!%xml) {
+			next; # Empty xml report data hash, nothing to work on.
+		}
+
+		if (!storeXMLInDatabase(\%xml)) {
+			next;
+		}
+
+		# Move Message to processed folder.
+		my $newuid = $imap->move($mvfolder, $imap->message_uid($msg))
+		or print "Could not move IMAP message: $@\n";
 	}
 
-	if (!storeXMLInDatabase(\%xml)) {
-		next;
+	# Expunge and close the folder.
+	$imap->expunge($readfolder);
+	$imap->close($readfolder);
+
+	# We're all done with IMAP here.
+	$imap->logout();
+
+} else { # TS_MESSAGE_FILE or TS_XML_FILE
+
+	if ($debug == 1) {
+		# How many msgs are we going to process?
+		print "There are ".@ARGV. " messages to be processed.\n";
 	}
 
-	# Move Message to processed folder
-	my $newuid = $imap->move($mvfolder, $imap->message_uid($msg))
-		or die "Could not move: $@\n";
+	foreach my $f (@ARGV) {
+
+		my %xml;
+		if ($reports_source ==  TS_MESSAGE_FILE) {
+			# Get XML data from mime message.
+			if (open FILE, $f)
+			{
+				my $filecontent = join("", <FILE>);
+				close FILE;
+				%xml = getXMLFromMessage($filecontent,$f);
+			} else {
+				print "Could not open file <$f>: $!. Skipped.\n";
+			}
+		} else {
+			# Get XML data from XML file directly, but test if parser can read the file.
+			eval {
+				my $xs = XML::Simple->new();
+				%xml = %{$xs->XMLin($f)}
+			}
+			or do {
+				print "File <$f> does not seem to be an XML file. Skipped.\n";
+			};
+		}
+
+		if (!%xml) {
+			next; # Empty xml report data hash, nothing to work on.
+		}
+
+		if (!storeXMLInDatabase(\%xml)) {
+			next;
+		}
+
+		# Add logic to move processed files?
+	}
 }
-
-# Expunge and close the folder
-$imap->expunge($readfolder);
-$imap->close($readfolder);
-
-# We're all done with IMAP here
-$imap->logout();
-
 
 
 
@@ -116,9 +201,13 @@ $imap->logout();
 ### subroutines ####################################################
 ####################################################################
 
+# Walk through a mime message and return a hash containing the
+# XML fields of the first ZIPed XML file embedded into the message.
+# The XML itself is not checked to be a valid DMARC report.
 sub getXMLFromMessage {
 	my $message = $_[0];
-
+	my $messagefile = $_[1];
+	
 	my $parser = new MIME::Parser;
 	$parser->output_dir("/tmp");
 	$parser->filer->ignore_filename(1);
@@ -129,8 +218,8 @@ sub getXMLFromMessage {
 	my $subj = decode_mimewords($ent->get('subject'));
 
 	if ($debug == 1) {
-		print " $subj\n";
-		print " $mtype\n";
+		print "Subject: $subj"; # Subject always contains \n, no need to print one.
+		print "MimeType: $mtype\n";
 	}
 
 	my $location;
@@ -152,7 +241,7 @@ sub getXMLFromMessage {
 		$isgzip = 1;
 
 	} elsif (lc $mtype eq "multipart/mixed") {
-		# at the moment, nease.net messages are multi-part, so we need to breakdown the attachments and find the zip
+		# At the moment, nease.net messages are multi-part, so we need to breakdown the attachments and find the zip.
 		if ($debug == 1) {
 			print "This is a multipart attachment \n";
 		}
@@ -191,7 +280,7 @@ sub getXMLFromMessage {
 			}
 		}
 	} else {
-		## Clean up dangling mime parts in /tmp of messages without ZIP
+		## Clean up dangling mime parts in /tmp of messages without ZIP.
 		my $num_parts = $ent->parts;
 		for (my $i=0; $i < $num_parts; $i++) {
 			if($debug == 1) {	
@@ -213,24 +302,39 @@ sub getXMLFromMessage {
 		}
 
 		# Open the zip file and process the XML contained inside.
+		my $unzip = "";
 		if($isgzip) {
 			open(XML, "<:gzip", $location)
-			or die "cannot ungzip $location";
+			or $unzip = "ungzip";
 		} else {
 			open(XML,"unzip -p " . $location . " |")
-			or die "cannot unzip $location";
+			or $unzip = "unzip"; # Will never happen.
+
+			# Sadly unzip -p never failes, but we can check if the filehandle points
+			# to an empty file and pretend it did not open/failed.
+			if (eof XML) {
+				$unzip = "unzip";
+				close XML;
+			}
 		}
 
-		my $xml = "";
-		$xml .= $_ while <XML>;
-		close XML;
-
-		my $xs = XML::Simple->new();
-
-		my $ref = $xs->XMLin($xml);
-		%xml = %{$ref};
-		#print join "\n",keys %xml;
-		#print "\n";
+		# Read XML if possible (if open)
+		if ($unzip eq "") {
+			eval {
+				my $xml = join("", <XML>);
+				my $xs = XML::Simple->new();
+				%xml = %{$xs->XMLin($xml)};
+				#print join "\n",keys %xml;
+				#print "\n";
+			} or do {
+				print "The XML found in ZIP file (temp. location: <$location>) extracted from <$messagefile> does not seem to be valid XML. Skipped.\n";
+			};
+			close XML;
+		} else {
+			print "Failed to $unzip ZIP file (temp. location: <$location>) extracted from <$messagefile>. Skipped.\n";
+		}
+	} else {
+		print "Could not find an embedded ZIP in message <$messagefile>. Skipped.\n";
 	}
 
 	if($body) {$body->purge;}
@@ -241,8 +345,10 @@ sub getXMLFromMessage {
 
 ####################################################################
 
+# Extract fields from the XML report data hash and store them
+# into the database.
 sub storeXMLInDatabase {
-	my %xml = %{$_[0]}; # pass xml data by reference
+	my %xml = %{$_[0]}; # Pass xml data by reference.
 
 	my $from = $xml{'report_metadata'}->{'date_range'}->{'begin'};
 	my $to = $xml{'report_metadata'}->{'date_range'}->{'end'};
@@ -257,19 +363,37 @@ sub storeXMLInDatabase {
 	my $policy_sp = $xml{'policy_published'}->{'sp'};
 	my $policy_pct = $xml{'policy_published'}->{'pct'};
 	# see if already stored
-	my ($xorg,$xid) = $dbh->selectrow_array(qq{SELECT org,reportid FROM report WHERE reportid=?}, undef, $id);
-	if($xorg) {
-		print "Already have $xorg $xid, skipped\n";
-		# The old inline code had a next here, which skipped the file-moving-operation.
-		# To keep the same behaviour, we return false here - but i think it would be better
-		# to return true, so the file which has already been processed is moved out of the way?
-		return 0;
+	my ($xorg,$sid) = $dbh->selectrow_array(qq{SELECT org, serial FROM report WHERE reportid=?}, undef, $id);
+	if($sid) {
+		if ($reports_replace) {
+			print "Replacing $xorg $id.\n";
+			$dbh->do(qq{DELETE from rptrecord WHERE serial=?}, undef, $sid);
+			if ($dbh->errstr) {
+				print "Cannot remove report data from database (". $dbh->errstr ."). Skipped.\n";
+				return 0;
+			}
+			$dbh->do(qq{DELETE from report WHERE serial=?}, undef, $sid);
+			if ($dbh->errstr) {
+				print "Cannot remove report from database (". $dbh->errstr ."). Skipped.\n";
+				return 0;
+			}
+		} else {
+			print "Already have $xorg $id, skipped\n";
+			# The old inline code had a next here, which skipped the file-moving-operation.
+			# To keep the same behaviour, we return false here - but i think it would be better
+			# to return true, so the file which has already been processed is moved out of the way?
+			return 0;
+		}
 	}
 
 	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info,policy_adkim, policy_aspf, policy_p, policy_sp, policy_pct)
 			VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?,?,?,?,?,?)};
-	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct)
-			or die "cannot make report" . $dbh->errstr;
+	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct);
+	if ($dbh->errstr) {
+		print "Cannot add report to database (". $dbh->errstr ."). Skipped.\n";
+		return 0;
+	}
+
 	my $serial = $dbh->{'mysql_insertid'} ||  $dbh->{'insertid'};
 	if($debug == 1){
 		print " serial $serial ";
@@ -333,8 +457,11 @@ sub storeXMLInDatabase {
 		}
 
 		$dbh->do(qq{INSERT INTO rptrecord(serial,$iptype,rcount,disposition,spf_align,dkim_align,reason,dkimdomain,dkimresult,spfdomain,spfresult,identifier_hfrom)
-			VALUES(?,$ipval,?,?,?,?,?,?,?,?,?,?)},undef,$serial,$count,$disp,$spf_align,$dkim_align,$reason,$dkim,$dkimresult,$spf,$spfresult,$identifier_hfrom)
-			or die "cannot insert record " . $dbh->{'mysql_error'};
+			VALUES(?,$ipval,?,?,?,?,?,?,?,?,?,?)},undef,$serial,$count,$disp,$spf_align,$dkim_align,$reason,$dkim,$dkimresult,$spf,$spfresult,$identifier_hfrom);
+		if ($dbh->errstr) {
+			print "Cannot add report data to database (". $dbh->errstr ."). Skipped.\n";
+			return 0;
+		}
 	}
 
 	if(ref $record eq "HASH") {
@@ -352,6 +479,8 @@ sub storeXMLInDatabase {
 	} else {
 		print "mystery type " . ref($record) . "\n";
 	}
+
+	return 1;
 }
 
 
