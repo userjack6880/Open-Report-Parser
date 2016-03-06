@@ -8,6 +8,22 @@
 #  http://www.taugh.com/rddmarc  
 ###################################################################
 
+
+# Usage:
+#    ./imap-dmarcts.pl [OPTIONS] [PATH]:
+#
+# If PATH is not provided, reports are read from an IMAP server, otherwise they are read
+# from PATH from local filesystem. PATH can be a filename of a single mime message file or
+# multiple mime message files - wildcard expression are allowed.
+#
+# The following options are always allowed:
+#  -d : Print debug info.
+#  -r : Replace existing reports rather than failing.
+#
+# If a PATH is given, the following option is also allowed:
+#  -x : Files specified by PATH are XML report files, rather than mime messages containing the XML report files.
+
+
 # Always be safe
 use strict;
 use warnings;
@@ -41,18 +57,37 @@ our $dbhost = '';
 # Override hardcoded script configuration options by local config file (does not need to exists)
 do "imap-dmarcts.conf";
 
+# Get command line options.
+my %options = ();
+getopts('drx', \%options);
+
+# Set default behaviour.
+use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2 };
+our $reports_source = TS_IMAP;
+our $reports_replace = 0;
+
+# Check for further command line arguments (interpreted as PATH)
+if ($ARGV[0]) {
+	$reports_source = TS_MESSAGE_FILE;
+}
+
+# Evaluate command line options
+if (exists $options{r}) {$reports_replace = 1;}
+if (exists $options{d}) {$debug = 1;}
+if (exists $options{x}) {
+	if ($reports_source == TS_IMAP) {
+		print "The -x OPTION requires a PATH.\n";
+		exit;
+	} else {
+		$reports_source = TS_XML_FILE;
+	}
+}
+
+
 
 ####################################################################
 ### main ###########################################################
 ####################################################################
-
-# Setup connection to IMAP server.
-my $imap = Mail::IMAPClient->new( Server => $imapserver,
-	Ssl => $imapssl,
-	User => $imapuser,
-	Password => $imappass)
-# module uses eval, so we use $@ instead of $!
-or die "IMAP Failure: $@";
 
 
 # Setup connection to database server.
@@ -62,53 +97,91 @@ or die "Cannot connect to database\n";
 checkDatabase($dbh);
 
 
-if ($debug == 1) {
-	# How many msgs are we going to process
-	print "There are ". $imap->message_count($readfolder).
-		" messages in the $readfolder folder.\n";
-}
+# Process messages  based on $reports_source
+if ($reports_source == TS_IMAP) {
 
-# Select the mailbox to get messages from
-$imap->select($readfolder)
-	or die "IMAP Select Error: $!";
+	# Setup connection to IMAP server.
+	my $imap = Mail::IMAPClient->new( Server => $imapserver,
+		Ssl => $imapssl,
+		User => $imapuser,
+		Password => $imappass)
+	# module uses eval, so we use $@ instead of $!
+	or die "IMAP Failure: $@";
 
-# Store each message as an array element
-my @msgs = $imap->search('ALL')
-	or die "Couldn't get all messages\n";
-
-# Loop through messages
-foreach my $msg (@msgs) {
 	if ($debug == 1) {
-		print "--------------------------------\n";
-		print "The Current Message UID is: ";
-		print $imap->message_uid($msg). "\n";
-		print "--------------------------------\n";
-		
-		print $imap->subject($msg). "\n";
-		##print $imap->message_string($msg). "\n";
+		# How many msgs are we going to process
+		print "There are ". $imap->message_count($readfolder).
+			" messages in the $readfolder folder.\n";
 	}
 
-	my %xml = getXMLFromMessage($imap->message_string($msg));
-	if (!%xml) {
-		next; # empty xml report data hash, nothing to work on
-	}
+	# Select the mailbox to get messages from
+	$imap->select($readfolder)
+		or die "IMAP Select Error: $!";
 
-	if (!storeXMLInDatabase(\%xml)) {
-		next;
-	}
+	# Store each message as an array element
+	my @msgs = $imap->search('ALL')
+		or die "Couldn't get all messages\n";
 
-	# Move Message to processed folder
-	my $newuid = $imap->move($mvfolder, $imap->message_uid($msg))
+	# Loop through IMAP messages
+	foreach my $msg (@msgs) {
+		if ($debug == 1) {
+			print "--------------------------------\n";
+			print "The Current Message UID is: ";
+			print $imap->message_uid($msg). "\n";
+			print "--------------------------------\n";
+		}
+
+		my %xml = getXMLFromMessage($imap->message_string($msg));
+		if (!%xml) {
+			next; # empty xml report data hash, nothing to work on
+		}
+
+		if (!storeXMLInDatabase(\%xml)) {
+			next;
+		}
+
+		# Move Message to processed folder
+		my $newuid = $imap->move($mvfolder, $imap->message_uid($msg))
 		or die "Could not move: $@\n";
+	}
+
+	# Expunge and close the folder
+	$imap->expunge($readfolder);
+	$imap->close($readfolder);
+
+	# We're all done with IMAP here
+	$imap->logout();
+
+} else { # TS_MESSAGE_FILE or TS_XML_FILE
+
+	if ($debug == 1) {
+		# How many msgs are we going to process
+		print "There are ".@ARGV. " messages to be processed.\n";
+	}
+
+	foreach my $msg (@ARGV) {
+
+		open FILE, $msg or die "Couldn't open file: $!";
+		my $message = join("", <FILE>);
+		close FILE;
+
+		my %xml;
+		# get XML data either from message or directly from XML file
+		if ($reports_source ==  TS_MESSAGE_FILE) {
+			%xml = getXMLFromMessage($message);
+		} else {
+			%xml = ();
+		}
+
+		if (!%xml) {
+			next; # empty xml report data hash, nothing to work on
+		}
+
+		if (!storeXMLInDatabase(\%xml)) {
+			next;
+		}
+	}
 }
-
-# Expunge and close the folder
-$imap->expunge($readfolder);
-$imap->close($readfolder);
-
-# We're all done with IMAP here
-$imap->logout();
-
 
 
 
@@ -116,6 +189,8 @@ $imap->logout();
 ### subroutines ####################################################
 ####################################################################
 
+# Walk through a mime message and return a hash containing the XML fields of the first
+# ZIPed XML file embedded into the message. XML itself is not checked to a valid DMARC report.
 sub getXMLFromMessage {
 	my $message = $_[0];
 
@@ -129,8 +204,8 @@ sub getXMLFromMessage {
 	my $subj = decode_mimewords($ent->get('subject'));
 
 	if ($debug == 1) {
-		print " $subj\n";
-		print " $mtype\n";
+		print "Subject: $subj"; # Subject always contains \n.
+		print "MimeType: $mtype\n";
 	}
 
 	my $location;
@@ -241,6 +316,7 @@ sub getXMLFromMessage {
 
 ####################################################################
 
+# Extract fields from XML report data hash and store them  into the database.
 sub storeXMLInDatabase {
 	my %xml = %{$_[0]}; # pass xml data by reference
 
