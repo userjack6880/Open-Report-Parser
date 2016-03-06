@@ -363,13 +363,27 @@ sub storeXMLInDatabase {
 	my $policy_sp = $xml{'policy_published'}->{'sp'};
 	my $policy_pct = $xml{'policy_published'}->{'pct'};
 	# see if already stored
-	my ($xorg,$xid) = $dbh->selectrow_array(qq{SELECT org,reportid FROM report WHERE reportid=?}, undef, $id);
-	if($xorg) {
-		print "Already have $xorg $xid, skipped\n";
-		# The old inline code had a next here, which skipped the file-moving-operation.
-		# To keep the same behaviour, we return false here - but i think it would be better
-		# to return true, so the file which has already been processed is moved out of the way?
-		return 0;
+	my ($xorg,$sid) = $dbh->selectrow_array(qq{SELECT org, serial FROM report WHERE reportid=?}, undef, $id);
+	if($sid) {
+		if ($reports_replace) {
+			print "Replacing $xorg $id.\n";
+			$dbh->do(qq{DELETE from rptrecord WHERE serial=?}, undef, $sid);
+			if ($dbh->errstr) {
+				print "Cannot remove report data from database (". $dbh->errstr ."). Skipped.\n";
+				return 0;
+			}
+			$dbh->do(qq{DELETE from report WHERE serial=?}, undef, $sid);
+			if ($dbh->errstr) {
+				print "Cannot remove report from database (". $dbh->errstr ."). Skipped.\n";
+				return 0;
+			}
+		} else {
+			print "Already have $xorg $id, skipped\n";
+			# The old inline code had a next here, which skipped the file-moving-operation.
+			# To keep the same behaviour, we return false here - but i think it would be better
+			# to return true, so the file which has already been processed is moved out of the way?
+			return 0;
+		}
 	}
 
 	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info,policy_adkim, policy_aspf, policy_p, policy_sp, policy_pct)
