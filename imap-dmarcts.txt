@@ -446,7 +446,9 @@ sub storeXMLInDatabase {
 
 		# What type of IP address?
 		my ($nip, $iptype, $ipval);
-		print "ip=$ip\n";
+		if($debug == 1) {
+			print "ip=$ip\n";
+		}
 		if($nip = inet_pton(AF_INET, $ip)) {
 			$ipval = unpack "N", $nip;
 			$iptype = "ip";
