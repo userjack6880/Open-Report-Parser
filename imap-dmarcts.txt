@@ -365,20 +365,24 @@ sub storeXMLInDatabase {
 	my $policy_p = $xml{'policy_published'}->{'p'};
 	my $policy_sp = $xml{'policy_published'}->{'sp'};
 	my $policy_pct = $xml{'policy_published'}->{'pct'};
+
 	# see if already stored
-	my ($xorg,$sid) = $dbh->selectrow_array(qq{SELECT org, serial FROM report WHERE reportid=?}, undef, $id);
-	if($sid) {
+	my $sth = $dbh->prepare(qq{SELECT org, serial FROM report WHERE reportid=?});
+	$sth->execute($id);
+	while ( my ($xorg,$sid) = $sth->fetchrow_array() )
+	{
 		if ($reports_replace) {
+			# $sid is the serial of a report with reportid=$id
+			# Remove this $sid from rptrecord and report table, but try to
+			# continue on failure rather than skipping.
 			print "Replacing $xorg $id.\n";
 			$dbh->do(qq{DELETE from rptrecord WHERE serial=?}, undef, $sid);
 			if ($dbh->errstr) {
-				print "Cannot remove report data from database (". $dbh->errstr ."). Skipped.\n";
-				return 0;
+				print "Cannot remove report data from database (". $dbh->errstr ."). Try to continue.\n";
 			}
 			$dbh->do(qq{DELETE from report WHERE serial=?}, undef, $sid);
 			if ($dbh->errstr) {
-				print "Cannot remove report from database (". $dbh->errstr ."). Skipped.\n";
-				return 0;
+				print "Cannot remove report from database (". $dbh->errstr ."). Try to continue.\n";
 			}
 		} else {
 			print "Already have $xorg $id, skipped\n";
