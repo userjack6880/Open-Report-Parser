@@ -133,12 +133,12 @@ if ($reports_source == TS_IMAP) {
 			print "--------------------------------\n";
 		}
 
-		my %xml = getXMLFromMessage($imap->message_string($msg),$msg);
-		if (!%xml) {
-			next; # Empty xml report data hash, nothing to work on.
+		my $xml = getXMLFromMessage($imap->message_string($msg),$msg);
+		if (!$xml) {
+			next; # Empty xml report data, nothing to work on.
 		}
 
-		if (!storeXMLInDatabase(\%xml)) {
+		if (!storeXMLInDatabase($xml)) {
 			next;
 		}
 
@@ -163,33 +163,30 @@ if ($reports_source == TS_IMAP) {
 
 	foreach my $f (@ARGV) {
 
-		my %xml;
-		if ($reports_source ==  TS_MESSAGE_FILE) {
-			# Get XML data from mime message.
-			if (open FILE, $f)
-			{
-				my $filecontent = join("", <FILE>);
-				close FILE;
-				%xml = getXMLFromMessage($filecontent,$f);
+		my $xml;
+		if (open FILE, $f)
+		{
+			my $filecontent = join("", <FILE>);
+			close FILE;
+			if ($reports_source ==  TS_MESSAGE_FILE) {
+				# Get XML data from mime message.
+				$xml = getXMLFromMessage($filecontent,$f);
 			} else {
-				print "Could not open file <$f>: $!. Skipped.\n";
+				# Get XML data from XML file directly.
+				$xml = getXMLFromXMLString($filecontent);
+				if (!$xml) {
+					print "File <$f> does not seem to be a valid XML file. Skipped.\n";
+				}
 			}
 		} else {
-			# Get XML data from XML file directly, but test if parser can read the file.
-			eval {
-				my $xs = XML::Simple->new();
-				%xml = %{$xs->XMLin($f)}
-			}
-			or do {
-				print "File <$f> does not seem to be an XML file. Skipped.\n";
-			};
+			print "Could not open file <$f>: $!. Skipped.\n";
 		}
 
-		if (!%xml) {
-			next; # Empty xml report data hash, nothing to work on.
+		if (!$xml) {
+			next; # Empty xml report data, nothing to work on.
 		}
 
-		if (!storeXMLInDatabase(\%xml)) {
+		if (!storeXMLInDatabase($xml)) {
 			next;
 		}
 
@@ -203,9 +200,10 @@ if ($reports_source == TS_IMAP) {
 ### subroutines ####################################################
 ####################################################################
 
-# Walk through a mime message and return a hash containing the
-# XML fields of the first ZIPed XML file embedded into the message.
-# The XML itself is not checked to be a valid DMARC report.
+# Walk through a mime message and return a reference to the
+# XML data containing the fields of the first ZIPed XML file
+# embedded into the message. The XML itself is not checked to
+# be a valid DMARC report.
 sub getXMLFromMessage {
 	my $message = $_[0];
 	my $messagefile = $_[1];
@@ -294,10 +292,9 @@ sub getXMLFromMessage {
 		}
 	}
 
-	# Default return value is an empty hash.
-	my %xml = ();
 
-	# If a ZIP has been found, extract XML and parse it into data hash.
+	# If a ZIP has been found, extract XML and parse it.
+	my $xml;
 	if(defined($location)) {
 		if ($debug == 1) {
 			print "body is in " . $location . "\n";
@@ -322,15 +319,10 @@ sub getXMLFromMessage {
 
 		# Read XML if possible (if open)
 		if ($unzip eq "") {
-			eval {
-				my $xml = join("", <XML>);
-				my $xs = XML::Simple->new();
-				%xml = %{$xs->XMLin($xml)};
-				#print join "\n",keys %xml;
-				#print "\n";
-			} or do {
+			$xml = getXMLFromXMLString(join("", <XML>));
+			if (!$xml) {
 				print "The XML found in ZIP file (temp. location: <$location>) extracted from <$messagefile> does not seem to be valid XML. Skipped.\n";
-			};
+			}
 			close XML;
 		} else {
 			print "Failed to $unzip ZIP file (temp. location: <$location>) extracted from <$messagefile>. Skipped.\n";
@@ -341,7 +333,23 @@ sub getXMLFromMessage {
 
 	if($body) {$body->purge;}
 	if($ent) {$ent->purge;}
-	return %xml;
+	return $xml;
+}
+
+
+####################################################################
+
+sub getXMLFromXMLString {
+	my $raw_xml = $_[0];
+
+	eval {
+		my $xs = XML::Simple->new();
+		my $ref = $xs->XMLin($raw_xml, SuppressEmpty => '');
+
+		return $ref;
+	} or do {
+		return undef;
+	}
 }
 
 
@@ -350,34 +358,38 @@ sub getXMLFromMessage {
 # Extract fields from the XML report data hash and store them
 # into the database.
 sub storeXMLInDatabase {
-	my %xml = %{$_[0]}; # Pass xml data by reference.
+	my $xml = $_[0]; # $xml is a reference to the xml data
 
-	my $from = $xml{'report_metadata'}->{'date_range'}->{'begin'};
-	my $to = $xml{'report_metadata'}->{'date_range'}->{'end'};
-	my $org = $xml{'report_metadata'}->{'org_name'};
-	my $id = $xml{'report_metadata'}->{'report_id'};
-	my $email = $xml{'report_metadata'}->{'email'};
-	my $extra = $xml{'report_metadata'}->{'extra_contact_info'};
-	my $domain =  $xml{'policy_published'}->{'domain'};
-	my $policy_adkim = $xml{'policy_published'}->{'adkim'};
-	my $policy_aspf = $xml{'policy_published'}->{'aspf'};
-	my $policy_p = $xml{'policy_published'}->{'p'};
-	my $policy_sp = $xml{'policy_published'}->{'sp'};
-	my $policy_pct = $xml{'policy_published'}->{'pct'};
+	my $from = $xml->{'report_metadata'}->{'date_range'}->{'begin'};
+	my $to = $xml->{'report_metadata'}->{'date_range'}->{'end'};
+	my $org = $xml->{'report_metadata'}->{'org_name'};
+	my $id = $xml->{'report_metadata'}->{'report_id'};
+	my $email = $xml->{'report_metadata'}->{'email'};
+	my $extra = $xml->{'report_metadata'}->{'extra_contact_info'};
+	my $domain =  $xml->{'policy_published'}->{'domain'};
+	my $policy_adkim = $xml->{'policy_published'}->{'adkim'};
+	my $policy_aspf = $xml->{'policy_published'}->{'aspf'};
+	my $policy_p = $xml->{'policy_published'}->{'p'};
+	my $policy_sp = $xml->{'policy_published'}->{'sp'};
+	my $policy_pct = $xml->{'policy_published'}->{'pct'};
+
 	# see if already stored
-	my ($xorg,$sid) = $dbh->selectrow_array(qq{SELECT org, serial FROM report WHERE reportid=?}, undef, $id);
-	if($sid) {
+	my $sth = $dbh->prepare(qq{SELECT org, serial FROM report WHERE reportid=?});
+	$sth->execute($id);
+	while ( my ($xorg,$sid) = $sth->fetchrow_array() )
+	{
 		if ($reports_replace) {
+			# $sid is the serial of a report with reportid=$id
+			# Remove this $sid from rptrecord and report table, but try to
+			# continue on failure rather than skipping.
 			print "Replacing $xorg $id.\n";
 			$dbh->do(qq{DELETE from rptrecord WHERE serial=?}, undef, $sid);
 			if ($dbh->errstr) {
-				print "Cannot remove report data from database (". $dbh->errstr ."). Skipped.\n";
-				return 0;
+				print "Cannot remove report data from database (". $dbh->errstr ."). Try to continue.\n";
 			}
 			$dbh->do(qq{DELETE from report WHERE serial=?}, undef, $sid);
 			if ($dbh->errstr) {
-				print "Cannot remove report from database (". $dbh->errstr ."). Skipped.\n";
-				return 0;
+				print "Cannot remove report from database (". $dbh->errstr ."). Try to continue.\n";
 			}
 		} else {
 			print "Already have $xorg $id, skipped\n";
@@ -400,7 +412,7 @@ sub storeXMLInDatabase {
 	if($debug == 1){
 		print " serial $serial ";
 	}
-	my $record = $xml{'record'};
+	my $record = $xml->{'record'};
 	sub dorow($$) {
 		my ($serial,$recp) = @_;
 		my %r = %$recp;
@@ -446,7 +458,9 @@ sub storeXMLInDatabase {
 
 		# What type of IP address?
 		my ($nip, $iptype, $ipval);
-		print "ip=$ip\n";
+		if($debug == 1) {
+			print "ip=$ip\n";
+		}
 		if($nip = inet_pton(AF_INET, $ip)) {
 			$ipval = unpack "N", $nip;
 			$iptype = "ip";
