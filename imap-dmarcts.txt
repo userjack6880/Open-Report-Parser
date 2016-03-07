@@ -47,6 +47,7 @@ our $imapserver = 'mail.example.com:143';
 our $imapuser = 'dmarcreports';
 our $imappass = 'xxx';
 our $imapssl = '0';
+our $imaptls = '1';
 our $mvfolder = 'processed';
 our $readfolder = 'Inbox';
 our $dbname = 'dmarc';
@@ -103,6 +104,7 @@ if ($reports_source == TS_IMAP) {
 	# Setup connection to IMAP server.
 	my $imap = Mail::IMAPClient->new( Server => $imapserver,
 		Ssl => $imapssl,
+		Starttls => $imaptls,
 		User => $imapuser,
 		Password => $imappass)
 	# module uses eval, so we use $@ instead of $!
