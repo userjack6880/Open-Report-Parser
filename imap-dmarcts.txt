@@ -323,9 +323,10 @@ sub getXMLFromMessage {
 		# Read XML if possible (if open)
 		if ($unzip eq "") {
 			eval {
-				my $xml = join("", <XML>);
+				my $raw_xml = join("", <XML>);
+				#print $raw_xml."\n";
 				my $xs = XML::Simple->new();
-				%xml = %{$xs->XMLin($xml)};
+				%xml = %{$xs->XMLin($raw_xml, SuppressEmpty => '')};
 				#print join "\n",keys %xml;
 				#print "\n";
 			} or do {
