@@ -237,6 +237,13 @@ if ($reports_source == TS_IMAP) {
 
 	foreach my $f (@ARGV) {
 
+		if ($debug == 1) {
+			print "--------------------------------\n";
+			print "The Current Message is: ";
+			print $f. "\n";
+			print "--------------------------------\n";
+		}
+
 		my $xml;
 		if (open FILE, $f)
 		{
