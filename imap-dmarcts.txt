@@ -142,6 +142,13 @@ if ($reports_source == TS_IMAP) {
 	# module uses eval, so we use $@ instead of $!
 	or die "IMAP Failure: $@";
 
+	# Set $imap to UID mode, which will force imap functions to use/return
+	# UIDs, instead of message sequence numbers. UIDs are not allowed to change
+	# during a session and are not allowed to be used twice. Looping over
+	# message sequence numbers and deleting a msg in between could have
+	# unwanted side effects.
+	$imap->Uid(1);
+
 	if ($debug == 1) {
 		# How many msgs are we going to process?
 		print "There are ". $imap->message_count($imapreadfolder).
@@ -164,11 +171,11 @@ if ($reports_source == TS_IMAP) {
 			if ($debug == 1) {
 				print "--------------------------------\n";
 				print "The Current Message UID is: ";
-				print $imap->message_uid($msg). "\n";
+				print $msg. "\n";
 				print "--------------------------------\n";
 			}
 
-			my $xml = getXMLFromMessage($imap->message_string($msg),$msg);
+			my $xml = getXMLFromMessage($imap->message_string($msg),"IMAP message with UID #".$msg);
 			if (!$xml) {
 				next; # Empty xml report data, nothing to work on.
 			}
@@ -181,13 +188,34 @@ if ($reports_source == TS_IMAP) {
 			# if the -k option is not given.
 			if (!$keep_reports_at_original_location) {
 				if ($imapmovefolder) {
-					$imap->copy($imapmovefolder, [ $msg ])
-					or print "Trying to move IMAP message (copy and delete), but could not copy IMAP message: $@\n";
-					$imap->delete_message($msg)
-					or print "Trying to move IMAP message (copy and delete), but could not delete IMAP message: $@\n";
+					if ($debug == 1) {
+						print "Moving (copy and delete) processed IMAP message file to IMAP folder $imapmovefolder\n";
+					}
+
+					# Try to create $imapmovefolder, if it does not exist.
+					if (!$imap->exists($imapmovefolder)) {
+						$imap->create($imapmovefolder)
+						or print "Could not create IMAP folder $imapmovefolder.\n";
+					}
+
+					# Try to move the message to $imapmovefolder.
+					my $newid = $imap->copy($imapmovefolder, [ $msg ]);
+					if (!$newid) {
+						print "Error on moving (copy and delete) processed IMAP message: Could not COPY message to IMAP folder <$imapmovefolder>!\n";
+						print "Messsage will not be moved/deleted. [$@]\n";
+					} else {
+						$imap->delete_message($msg)
+						or do {
+							print "Error on moving (copy and delete) processed IMAP message: Could not DELETE message\n";
+							print "after copying it to <$imapmovefolder>. [$@]\n";
+						}
+					}
 				} else {
+					if ($debug == 1) {
+						print "Deleting processed IMAP message file.\n";
+					}
 					$imap->delete_message($msg)
-					or print "Could not delete IMAP message: $@\n";
+					or print "Could not delete IMAP message. [$@]\n";
 				}
 			}
 		}
@@ -377,7 +405,7 @@ sub getXMLFromMessage {
 			print "Failed to $unzip ZIP file (temp. location: <$location>) extracted from <$messagefile>. Skipped.\n";
 		}
 	} else {
-		print "Could not find an embedded ZIP in message <$messagefile>. Skipped.\n";
+		print "Could not find an embedded ZIP in <$messagefile>. Skipped.\n";
 	}
 
 	if($body) {$body->purge;}
