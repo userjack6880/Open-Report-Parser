@@ -34,9 +34,11 @@ $imapuser = 'dmarcreports';
 $imappass = 'xxx';
 $imapssl = '0'; # If set to 1, remember to change server port to 993.
 $imaptls = '1'; # Enabled as the default and best-practice.
-$imapmovefolder = 'processed'; # If $imapmovefolder is empty (''), processed IMAP messages will be deleted.
 $imapreadfolder = 'Inbox';
 
+# If $imapmovefolder is empty (''), processed IMAP messages
+# will be deleted, if -k option is not given.
+$imapmovefolder = 'Inbox.processed';
 ```
 The alternative is to provide these lines in an `imap-dmarcts.conf` file in the current working directory. If that file is found, configuration options are taken from there.
 
