@@ -16,12 +16,24 @@
 # from PATH from local filesystem. PATH can be a filename of a single mime message file or
 # multiple mime message files - wildcard expression are allowed.
 #
+# To run, this script needs custom configurations: a database server and credentials
+# and (if used) an IMAP server and credentials. These values can be set inside the script
+# or by providing them via <imap-dmarcts.conf> in the current working directory.
+#
+# The default behaviour of the script is to DELETE processed message files, since the XML
+# is stored in the database and the original messages are no longer needed. For IMAP access,
+# this can be modified by setting $imapmovefolder (message is moved rather than being deleted).
+# In general this can be modified by setting $keep_reports_at_original_location or by
+# providing the -k option.
+
 # The following options are always allowed:
 #  -d : Print debug info.
 #  -r : Replace existing reports rather than failing.
+#  -k : Do not delete processed message files and keep them at their original location.
 #
 # If a PATH is given, the following option is also allowed:
-#  -x : Files specified by PATH are XML report files, rather than mime messages containing the XML report files.
+#  -x : Files specified by PATH are XML report files, rather than mime messages containing
+#       the XML report files. Processed XML files are not deleted.
 
 
 # Always be safe
@@ -41,26 +53,43 @@ use Socket;
 use Socket6;
 use PerlIO::gzip;
 
-# Hardcoded script configuration options.
+####################################################################
+### configuration ##################################################
+####################################################################
+
+# If IMAP access is not used, config options starting with $imap
+# do not need to be set and are ignored.
+
 our $debug = 0;
-our $imapserver = 'mail.example.com:143';
-our $imapuser = 'dmarcreports';
-our $imappass = 'xxx';
-our $imapssl = '0';
-our $imaptls = '1';
-our $mvfolder = 'processed';
-our $readfolder = 'Inbox';
+our $keep_reports_at_original_location = 0;
+
 our $dbname = 'dmarc';
 our $dbuser = 'dmarc';
 our $dbpass = 'xxx';
-our $dbhost = '';
+our $dbhost = ''; # Set the hostname if we can't connect to the local socket.
 
-# Override hardcoded script configuration options by local config file (does not need to exists)
+our $imapserver = 'mail.example.com:143';
+our $imapuser = 'dmarcreports';
+our $imappass = 'xxx';
+our $imapssl = '0'; # If set to 1, remember to change server port to 993.
+our $imaptls = '1'; # Enabled as the default and best-practice.
+our $imapmovefolder = 'processed'; # If $imapmovefolder is empty (''), processed IMAP messages will be deleted, if -k option is not given.
+our $imapreadfolder = 'Inbox';
+
+
+
+####################################################################
+### main ###########################################################
+####################################################################
+
+# Override hardcoded script configuration options by local config file.
+# The file is expected to be in the current working directory, but it
+# does not need to exists.
 do "imap-dmarcts.conf";
 
 # Get command line options.
 my %options = ();
-getopts('drx', \%options);
+getopts('drxk', \%options);
 
 # Set default behaviour.
 use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2 };
@@ -74,7 +103,6 @@ if ($ARGV[0]) {
 
 # Evaluate command line options
 if (exists $options{r}) {$reports_replace = 1;}
-if (exists $options{d}) {$debug = 1;}
 if (exists $options{x}) {
 	if ($reports_source == TS_IMAP) {
 		print "The -x OPTION requires a PATH.\n";
@@ -83,12 +111,9 @@ if (exists $options{x}) {
 		$reports_source = TS_XML_FILE;
 	}
 }
-
-
-
-####################################################################
-### main ###########################################################
-####################################################################
+# Override config options by command line options.
+if (exists $options{d}) {$debug = 1;}
+if (exists $options{k}) {$keep_reports_at_original_location = 1;}
 
 
 # Setup connection to database server.
@@ -112,12 +137,12 @@ if ($reports_source == TS_IMAP) {
 
 	if ($debug == 1) {
 		# How many msgs are we going to process?
-		print "There are ". $imap->message_count($readfolder).
-			" messages in the $readfolder folder.\n";
+		print "There are ". $imap->message_count($imapreadfolder).
+			" messages in the $imapreadfolder folder.\n";
 	}
 
 	# Select the mailbox to get messages from.
-	$imap->select($readfolder)
+	$imap->select($imapreadfolder)
 		or die "IMAP Select Error: $!";
 
 	# Store each message as an array element.
@@ -142,14 +167,22 @@ if ($reports_source == TS_IMAP) {
 			next;
 		}
 
-		# Move Message to processed folder.
-		my $newuid = $imap->move($mvfolder, $imap->message_uid($msg))
-		or print "Could not move IMAP message: $@\n";
+		# Move or delete processed messages based on $imapmovefolder,
+		# if the -k option is not given.
+		if (!$keep_reports_at_original_location) {
+			if ($imapmovefolder) {
+				my $newuid = $imap->move($imapmovefolder, $imap->message_uid($msg))
+				or print "Could not move IMAP message: $@\n";
+			} else {
+				my $newuid = $imap->delete_message($imap->message_uid($msg))
+				or print "Could not delete IMAP message: $@\n";
+			}
+		}
 	}
 
 	# Expunge and close the folder.
-	$imap->expunge($readfolder);
-	$imap->close($readfolder);
+	$imap->expunge($imapreadfolder);
+	$imap->close($imapreadfolder);
 
 	# We're all done with IMAP here.
 	$imap->logout();
@@ -168,7 +201,7 @@ if ($reports_source == TS_IMAP) {
 		{
 			my $filecontent = join("", <FILE>);
 			close FILE;
-			if ($reports_source ==  TS_MESSAGE_FILE) {
+			if ($reports_source == TS_MESSAGE_FILE) {
 				# Get XML data from mime message.
 				$xml = getXMLFromMessage($filecontent,$f);
 			} else {
@@ -190,8 +223,10 @@ if ($reports_source == TS_IMAP) {
 			next;
 		}
 
-		# Add logic to move processed files?
-	}
+		# Delete processed messages files, if the -k option is not given.
+		if (!$keep_reports_at_original_location && $reports_source == TS_MESSAGE_FILE) {
+			unlink($f);
+		}
 }
 
 
