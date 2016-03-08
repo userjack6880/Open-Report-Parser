@@ -225,50 +225,57 @@ if ($reports_source == TS_IMAP) {
 
 } else { # TS_MESSAGE_FILE or TS_XML_FILE
 
-	if ($debug == 1) {
-		# How many msgs are we going to process?
-		print "There are ".@ARGV. " messages to be processed.\n";
-	}
-
-	foreach my $f (@ARGV) {
+	foreach my $a (@ARGV) {
+		# Linux bash supports wildcard expansion BEFORE the script is called, so here we only see a list of files.
+		# Other OS behave different, so we should not depend on that feature: Use glob on each argument to
+		# manually expand the argument, if possible.
+		my @file_list = glob($a);
 
 		if ($debug == 1) {
-			print "--------------------------------\n";
-			print "The Current Message is: ";
-			print $f. "\n";
-			print "--------------------------------\n";
+			# How many msgs are we going to process?
+			print "There are ". @file_list. " messages to be processed.\n";
 		}
 
-		my $xml;
-		if (open FILE, $f)
-		{
-			my $filecontent = join("", <FILE>);
-			close FILE;
-			if ($reports_source == TS_MESSAGE_FILE) {
-				# Get XML data from mime message.
-				$xml = getXMLFromMessage($filecontent,$f);
-			} else {
-				# Get XML data from XML file directly.
-				$xml = getXMLFromXMLString($filecontent);
-				if (!$xml) {
-					print "File <$f> does not seem to be a valid XML file. Skipped.\n";
-				}
+		foreach my $f (@file_list) {
+
+			if ($debug == 1) {
+				print "--------------------------------\n";
+				print "The Current Message is: ";
+				print $f. "\n";
+				print "--------------------------------\n";
 			}
-		} else {
-			print "Could not open file <$f>: $!. Skipped.\n";
-		}
 
-		if (!$xml) {
-			next; # Empty xml report data, nothing to work on.
-		}
+			my $xml;
+			if (open FILE, $f)
+			{
+				my $filecontent = join("", <FILE>);
+				close FILE;
+				if ($reports_source == TS_MESSAGE_FILE) {
+					# Get XML data from mime message.
+					$xml = getXMLFromMessage($filecontent,$f);
+				} else {
+					# Get XML data from XML file directly.
+					$xml = getXMLFromXMLString($filecontent);
+					if (!$xml) {
+						print "File <$f> does not seem to be a valid XML file. Skipped.\n";
+					}
+				}
+			} else {
+				print "Could not open file <$f>: $!. Skipped.\n";
+			}
 
-		if (!storeXMLInDatabase($xml)) {
-			next;
-		}
+			if (!$xml) {
+				next; # Empty xml report data, nothing to work on.
+			}
 
-		# Delete processed message files, if the --delete option is given.
-		if ($delete_reports) {
-			unlink($f);
+			if (!storeXMLInDatabase($xml)) {
+				next;
+			}
+
+			# Delete processed message files, if the --delete option is given.
+			if ($delete_reports) {
+				unlink($f);
+			}
 		}
 	}
 }
