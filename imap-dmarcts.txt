@@ -53,7 +53,7 @@ use Socket;
 use Socket6;
 use PerlIO::gzip;
 
-# Define all possible configuration options
+# Define all possible configuration options.
 our ($debug, $keep_reports_at_original_location, $dbname, $dbuser, $dbpass, $dbhost, $imapserver, $imapuser, $imappass, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder);
 
 
@@ -145,48 +145,54 @@ if ($reports_source == TS_IMAP) {
 			" messages in the $imapreadfolder folder.\n";
 	}
 
-	# Select the mailbox to get messages from.
-	$imap->select($imapreadfolder)
-		or die "IMAP Select Error: $!";
+	# Only select and search $imapreadfolder, if we actually
+	# have something to do.
+	if ($imap->message_count($imapreadfolder)) {
+		# Select the mailbox to get messages from.
+		$imap->select($imapreadfolder)
+			or die "IMAP Select Error: $!";
 
-	# Store each message as an array element.
-	my @msgs = $imap->search('ALL')
-		or die "Couldn't get all messages\n";
+		# Store each message as an array element.
+		my @msgs = $imap->search('ALL')
+			or die "Couldn't get all messages\n";
 
-	# Loop through IMAP messages.
-	foreach my $msg (@msgs) {
-		if ($debug == 1) {
-			print "--------------------------------\n";
-			print "The Current Message UID is: ";
-			print $imap->message_uid($msg). "\n";
-			print "--------------------------------\n";
-		}
+		# Loop through IMAP messages.
+		foreach my $msg (@msgs) {
+			if ($debug == 1) {
+				print "--------------------------------\n";
+				print "The Current Message UID is: ";
+				print $imap->message_uid($msg). "\n";
+				print "--------------------------------\n";
+			}
 
-		my $xml = getXMLFromMessage($imap->message_string($msg),$msg);
-		if (!$xml) {
-			next; # Empty xml report data, nothing to work on.
-		}
+			my $xml = getXMLFromMessage($imap->message_string($msg),$msg);
+			if (!$xml) {
+				next; # Empty xml report data, nothing to work on.
+			}
 
-		if (!storeXMLInDatabase($xml)) {
-			next;
-		}
+			if (!storeXMLInDatabase($xml)) {
+				next;
+			}
 
-		# Move or delete processed messages based on $imapmovefolder,
-		# if the -k option is not given.
-		if (!$keep_reports_at_original_location) {
-			if ($imapmovefolder) {
-				my $newuid = $imap->move($imapmovefolder, $imap->message_uid($msg))
-				or print "Could not move IMAP message: $@\n";
-			} else {
-				my $newuid = $imap->delete_message($imap->message_uid($msg))
-				or print "Could not delete IMAP message: $@\n";
+			# Move or delete processed messages based on $imapmovefolder,
+			# if the -k option is not given.
+			if (!$keep_reports_at_original_location) {
+				if ($imapmovefolder) {
+					$imap->copy($imapmovefolder, [ $msg ])
+					or print "Trying to move IMAP message (copy and delete), but could not copy IMAP message: $@\n";
+					$imap->delete_message($msg)
+					or print "Trying to move IMAP message (copy and delete), but could not delete IMAP message: $@\n";
+				} else {
+					$imap->delete_message($msg)
+					or print "Could not delete IMAP message: $@\n";
+				}
 			}
 		}
-	}
 
-	# Expunge and close the folder.
-	$imap->expunge($imapreadfolder);
-	$imap->close($imapreadfolder);
+		# Expunge and close the folder.
+		$imap->expunge($imapreadfolder);
+		$imap->close($imapreadfolder);
+	}
 
 	# We're all done with IMAP here.
 	$imap->logout();
@@ -434,10 +440,9 @@ sub storeXMLInDatabase {
 			}
 		} else {
 			print "Already have $xorg $id, skipped\n";
-			# The old inline code had a next here, which skipped the file-moving-operation.
-			# To keep the same behaviour, we return false here - but i think it would be better
-			# to return true, so the file which has already been processed is moved out of the way?
-			return 0;
+			# Do not store in DB, but return true, so the message can be moved
+			# out of the way, if configured to do so.
+			return 1;
 		}
 	}
 
