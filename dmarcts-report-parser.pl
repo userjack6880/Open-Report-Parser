@@ -56,7 +56,7 @@ our $dbpass = 'xxx';
 our $dbhost = '';
 
 # Override hardcoded script configuration options by local config file (does not need to exists)
-do "dmarcts-report-parser.conf";
+do "imap-dmarcts.conf";
 
 # Get command line options.
 my %options = ();
