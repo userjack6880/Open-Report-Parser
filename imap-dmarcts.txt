@@ -345,6 +345,7 @@ sub getXMLFromXMLString {
 	eval {
 		my $xs = XML::Simple->new();
 		my $ref = $xs->XMLin($raw_xml, SuppressEmpty => '');
+		$ref->{'raw_xml'} = $raw_xml;
 
 		return $ref;
 	} or do {
@@ -400,9 +401,9 @@ sub storeXMLInDatabase {
 		}
 	}
 
-	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info,policy_adkim, policy_aspf, policy_p, policy_sp, policy_pct)
-			VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?,?,?,?,?,?)};
-	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct);
+	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info,policy_adkim, policy_aspf, policy_p, policy_sp, policy_pct, raw_xml)
+			VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?,?,?,?,?,?,?)};
+	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct,$xml->{'raw_xml'});
 	if ($dbh->errstr) {
 		print "Cannot add report to database (". $dbh->errstr ."). Skipped.\n";
 		return 0;
@@ -526,6 +527,7 @@ sub checkDatabase {
 				"policy_p"		, "varchar(20) NULL",
 				"policy_sp"		, "varchar(20) NULL",
 				"policy_pct"		, "tinyint unsigned",
+				"raw_xml"		, "MEDIUMTEXT",
 				],
 			additional_definitions 		=> "PRIMARY KEY (serial), UNIQUE KEY domain (domain,reportid)",
 			table_options			=> "",
