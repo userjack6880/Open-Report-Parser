@@ -22,7 +22,7 @@ Once the script has been downloaded, you'll want to edit these basic configurati
 # do not need to be set and are ignored.
 
 $debug = 0;
-$keep_reports_at_original_location = 0;
+$delete_reports = 0;
 
 $dbname = 'dmarc';
 $dbuser = 'dmarc';
@@ -36,8 +36,8 @@ $imapssl = '0'; # If set to 1, remember to change server port to 993.
 $imaptls = '1'; # Enabled as the default and best-practice.
 $imapreadfolder = 'Inbox';
 
-# If $imapmovefolder is empty (''), processed IMAP messages
-# will be deleted, if -k option is not given.
+# If $imapmovefolder is set, processed IMAP messages
+# will be moved (overruled by the --delete option!)
 $imapmovefolder = 'Inbox.processed';
 ```
 The alternative is to provide these lines in an `imap-dmarcts.conf` file in the current working directory. If that file is found, configuration options are taken from there.
@@ -51,22 +51,20 @@ If `PATH` is not provided, reports are read from an IMAP server, otherwise they 
 
 **Remember**: To run, this script needs custom configurations: a database server and credentials and (if used) an IMAP server and credentials. These values can be set inside the script or by providing them via `imap-dmarcts.conf` in the current working directory.
 
-The default behaviour of the script is to DELETE processed message files, since the XML is stored in the database and the original messages are no longer needed. For IMAP access, this can be modified by setting `$imapmovefolder` (message is moved rather than being deleted). In general this can be modified by setting `$keep_reports_at_original_location` or by
-providing the -k option.
-
 The following options are always allowed:
 ```
- -d : Print debug info.
- -r : Replace existing reports rather than failing.
- -k : Do not delete processed message files and keep them at their
-      original location.
+#        -d : Print debug info.
+#        -r : Replace existing reports rather than failing.
+#  --delete : Delete processed message files (the XML is stored in the
+#             database for later reference).
 ```
 
 If a `PATH` is given, the following option is also allowed:
 ```
- -x : Files specified by PATH are XML report files, rather than
-      mime messages containing the XML report files.
-      Processed XML files are not deleted.
+         -x : Files specified by PATH are XML report files, rather than
+              mime messages containing the XML report files.
+              Processed XML files are not deleted.
 ```
 
 More info can currently be found at : [TechSneeze.com](http://www.techsneeze.com/how-parse-dmarc-reports-imap/)
+

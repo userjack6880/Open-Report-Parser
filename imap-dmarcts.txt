@@ -20,20 +20,17 @@
 # and (if used) an IMAP server and credentials. These values can be set inside the script
 # or by providing them via <imap-dmarcts.conf> in the current working directory.
 #
-# The default behaviour of the script is to DELETE processed message files, since the XML
-# is stored in the database and the original messages are no longer needed. For IMAP access,
-# this can be modified by setting $imapmovefolder (message is moved rather than being deleted).
-# In general this can be modified by setting $keep_reports_at_original_location or by
-# providing the -k option.
-
 # The following options are always allowed:
-#  -d : Print debug info.
-#  -r : Replace existing reports rather than failing.
-#  -k : Do not delete processed message files and keep them at their original location.
+#        -d : Print debug info.
+#        -r : Replace existing reports rather than failing.
+#  --delete : Delete processed message files (the XML is stored in the
+#             database for later reference).
 #
 # If a PATH is given, the following option is also allowed:
-#  -x : Files specified by PATH are XML report files, rather than mime messages containing
-#       the XML report files. Processed XML files are not deleted.
+#        -x : Files specified by PATH are XML report files, rather than
+#             mime messages containing the XML report files.
+#             Processed XML files are not deleted.
+
 
 
 # Always be safe
@@ -41,7 +38,7 @@ use strict;
 use warnings;
 
 # Use these modules
-use Getopt::Std;
+use Getopt::Long;
 use Data::Dumper;
 use Mail::IMAPClient;
 use MIME::Words qw(decode_mimewords);
@@ -54,7 +51,7 @@ use Socket6;
 use PerlIO::gzip;
 
 # Define all possible configuration options.
-our ($debug, $keep_reports_at_original_location, $dbname, $dbuser, $dbpass, $dbhost, $imapserver, $imapuser, $imappass, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder);
+our ($debug, $delete_reports, $dbname, $dbuser, $dbpass, $dbhost, $imapserver, $imapuser, $imappass, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder);
 
 
 ####################################################################
@@ -65,7 +62,7 @@ our ($debug, $keep_reports_at_original_location, $dbname, $dbuser, $dbpass, $dbh
 # do not need to be set and are ignored.
 
 $debug = 0;
-$keep_reports_at_original_location = 0;
+$delete_reports = 0;
 
 $dbname = 'dmarc';
 $dbuser = 'dmarc';
@@ -79,8 +76,8 @@ $imapssl = '0'; # If set to 1, remember to change server port to 993.
 $imaptls = '1'; # Enabled as the default and best-practice.
 $imapreadfolder = 'Inbox';
 
-# If $imapmovefolder is empty (''), processed IMAP messages
-# will be deleted, if -k option is not given.
+# If $imapmovefolder is set, processed IMAP messages
+# will be moved (overruled by the --delete option!)
 $imapmovefolder = 'Inbox.processed';
 
 
@@ -96,7 +93,7 @@ do "imap-dmarcts.conf";
 
 # Get command line options.
 my %options = ();
-getopts('drxk', \%options);
+GetOptions( \%options, 'd', 'r', 'x', 'delete' );
 
 # Set default behaviour.
 use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2 };
@@ -120,7 +117,7 @@ if (exists $options{x}) {
 }
 # Override config options by command line options.
 if (exists $options{d}) {$debug = 1;}
-if (exists $options{k}) {$keep_reports_at_original_location = 1;}
+if (exists $options{delete}) {$delete_reports = 1;}
 
 
 # Setup connection to database server.
@@ -184,38 +181,36 @@ if ($reports_source == TS_IMAP) {
 				next;
 			}
 
-			# Move or delete processed messages based on $imapmovefolder,
-			# if the -k option is not given.
-			if (!$keep_reports_at_original_location) {
-				if ($imapmovefolder) {
-					if ($debug == 1) {
-						print "Moving (copy and delete) processed IMAP message file to IMAP folder $imapmovefolder\n";
-					}
+			# Delete processed message files, if the --delete option is given.
+			# Otherwise move messages if $imapmovefolder is set.
+			if ($delete_reports) {
+				if ($debug == 1) {
+					print "Deleting processed IMAP message file.\n";
+				}
+				$imap->delete_message($msg)
+				or print "Could not delete IMAP message. [$@]\n";
+			} elsif ($imapmovefolder) {
+				if ($debug == 1) {
+					print "Moving (copy and delete) processed IMAP message file to IMAP folder $imapmovefolder\n";
+				}
 
-					# Try to create $imapmovefolder, if it does not exist.
-					if (!$imap->exists($imapmovefolder)) {
-						$imap->create($imapmovefolder)
-						or print "Could not create IMAP folder $imapmovefolder.\n";
-					}
+				# Try to create $imapmovefolder, if it does not exist.
+				if (!$imap->exists($imapmovefolder)) {
+					$imap->create($imapmovefolder)
+					or print "Could not create IMAP folder $imapmovefolder.\n";
+				}
 
-					# Try to move the message to $imapmovefolder.
-					my $newid = $imap->copy($imapmovefolder, [ $msg ]);
-					if (!$newid) {
-						print "Error on moving (copy and delete) processed IMAP message: Could not COPY message to IMAP folder <$imapmovefolder>!\n";
-						print "Messsage will not be moved/deleted. [$@]\n";
-					} else {
-						$imap->delete_message($msg)
-						or do {
-							print "Error on moving (copy and delete) processed IMAP message: Could not DELETE message\n";
-							print "after copying it to <$imapmovefolder>. [$@]\n";
-						}
-					}
+				# Try to move the message to $imapmovefolder.
+				my $newid = $imap->copy($imapmovefolder, [ $msg ]);
+				if (!$newid) {
+					print "Error on moving (copy and delete) processed IMAP message: Could not COPY message to IMAP folder <$imapmovefolder>!\n";
+					print "Messsage will not be moved/deleted. [$@]\n";
 				} else {
-					if ($debug == 1) {
-						print "Deleting processed IMAP message file.\n";
-					}
 					$imap->delete_message($msg)
-					or print "Could not delete IMAP message. [$@]\n";
+					or do {
+						print "Error on moving (copy and delete) processed IMAP message: Could not DELETE message\n";
+						print "after copying it to <$imapmovefolder>. [$@]\n";
+					}
 				}
 			}
 		}
@@ -271,8 +266,8 @@ if ($reports_source == TS_IMAP) {
 			next;
 		}
 
-		# Delete processed messages files, if the -k option is not given.
-		if (!$keep_reports_at_original_location && $reports_source == TS_MESSAGE_FILE) {
+		# Delete processed message files, if the --delete option is given.
+		if ($delete_reports) {
 			unlink($f);
 		}
 	}
