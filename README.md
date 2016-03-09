@@ -1,8 +1,8 @@
-# imap-dmarcts
+# dmarcts-report-parser
 A Perl based tool to parse DMARC reports, based on John Levine's [rddmarc](http://www.taugh.com/rddmarc/), but extended by the following features:
 * Allow to read messages from an IMAP server and not only from the local filesystem.
 * Store much more XML values into the database (for example the missing SPF and DKIM results from the policy_evaluated section) and also the entire XML for later reference.
-* Needed database tables and columns are created automatically, user only needs to provide a database. The database schema is compatible to the one used by rddmarc, but extends it by additional fields. Users can switch from rddmarc to imap-dmarcts without having to do any changes to the database by themself.
+* Needed database tables and columns are created automatically, user only needs to provide a database. The database schema is compatible to the one used by rddmarc, but extends it by additional fields. Users can switch from rddmarc to dmarcts-report-parser.pl without having to do any changes to the database by themself.
 
 
 ## Installation and Configuration
@@ -40,12 +40,12 @@ $imapreadfolder = 'Inbox';
 # will be moved (overruled by the --delete option!)
 $imapmovefolder = 'Inbox.processed';
 ```
-The alternative is to provide these lines in an `imap-dmarcts.conf` file in the current working directory. If that file is found, configuration options are taken from there.
+The alternative is to provide these lines in an `dmarcts-report-parser.conf` file in the current working directory. If that file is found, configuration options are taken from there.
 
 ## Usage
 
 ```
-./imap-dmarcts.pl [OPTIONS] [PATH]
+./dmarcts-report-parser.pl [OPTIONS] [PATH]
 ```
 If `PATH` is not provided, reports are read from an IMAP server, otherwise they are read from PATH from local filesystem. PATH can be a filename of a single mime message file or multiple mime message files - wildcard expression are allowed.
 
