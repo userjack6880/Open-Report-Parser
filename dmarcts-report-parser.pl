@@ -10,7 +10,7 @@
 
 
 # Usage:
-#    ./imap-dmarcts.pl [OPTIONS] [PATH]
+#    ./dmarcts-report-parser.pl [OPTIONS] [PATH]
 #
 # If PATH is not provided, reports are read from an IMAP server, otherwise they are read
 # from PATH from local filesystem. PATH can be a filename of a single mime message file or
@@ -88,7 +88,7 @@ $imapmovefolder = 'Inbox.processed';
 # Override hardcoded script configuration options by local config file.
 # The file is expected to be in the current working directory, but it
 # does not need to exists.
-do "imap-dmarcts.conf";
+do "dmarcts-report-parser.conf";
 
 # Get command line options.
 my %options = ();
