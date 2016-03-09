@@ -18,7 +18,7 @@
 #
 # To run, this script needs custom configurations: a database server and credentials
 # and (if used) an IMAP server and credentials. These values can be set inside the script
-# or by providing them via <imap-dmarcts.conf> in the current working directory.
+# or by providing them via <dmarcts-report-parser.conf> in the current working directory.
 #
 # The following options are always allowed:
 #        -d : Print debug info.
