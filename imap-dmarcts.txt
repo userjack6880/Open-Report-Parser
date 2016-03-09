@@ -16,12 +16,20 @@
 # from PATH from local filesystem. PATH can be a filename of a single mime message file or
 # multiple mime message files - wildcard expression are allowed.
 #
+# To run, this script needs custom configurations: a database server and credentials
+# and (if used) an IMAP server and credentials. These values can be set inside the script
+# or by providing them via <imap-dmarcts.conf> in the current working directory.
+#
 # The following options are always allowed:
-#  -d : Print debug info.
-#  -r : Replace existing reports rather than failing.
+#        -d : Print debug info.
+#        -r : Replace existing reports rather than failing.
+#  --delete : Delete processed message files (the XML is stored in the
+#             database for later reference).
 #
 # If a PATH is given, the following option is also allowed:
-#  -x : Files specified by PATH are XML report files, rather than mime messages containing the XML report files.
+#        -x : Files specified by PATH are XML report files, rather than
+#             mime messages containing the XML report files.
+
 
 
 # Always be safe
@@ -29,7 +37,7 @@ use strict;
 use warnings;
 
 # Use these modules
-use Getopt::Std;
+use Getopt::Long;
 use Data::Dumper;
 use Mail::IMAPClient;
 use MIME::Words qw(decode_mimewords);
@@ -41,26 +49,50 @@ use Socket;
 use Socket6;
 use PerlIO::gzip;
 
-# Hardcoded script configuration options.
-our $debug = 0;
-our $imapserver = 'mail.example.com:143';
-our $imapuser = 'dmarcreports';
-our $imappass = 'xxx';
-our $imapssl = '0';
-our $imaptls = '1';
-our $mvfolder = 'processed';
-our $readfolder = 'Inbox';
-our $dbname = 'dmarc';
-our $dbuser = 'dmarc';
-our $dbpass = 'xxx';
-our $dbhost = '';
+# Define all possible configuration options.
+our ($debug, $delete_reports, $dbname, $dbuser, $dbpass, $dbhost, $imapserver, $imapuser, $imappass, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder);
 
-# Override hardcoded script configuration options by local config file (does not need to exists)
+
+####################################################################
+### configuration ##################################################
+####################################################################
+
+# If IMAP access is not used, config options starting with $imap
+# do not need to be set and are ignored.
+
+$debug = 0;
+$delete_reports = 0;
+
+$dbname = 'dmarc';
+$dbuser = 'dmarc';
+$dbpass = 'xxx';
+$dbhost = ''; # Set the hostname if we can't connect to the local socket.
+
+$imapserver = 'mail.example.com:143';
+$imapuser = 'dmarcreports';
+$imappass = 'xxx';
+$imapssl = '0'; # If set to 1, remember to change server port to 993.
+$imaptls = '1'; # Enabled as the default and best-practice.
+$imapreadfolder = 'Inbox';
+
+# If $imapmovefolder is set, processed IMAP messages
+# will be moved (overruled by the --delete option!)
+$imapmovefolder = 'Inbox.processed';
+
+
+
+####################################################################
+### main ###########################################################
+####################################################################
+
+# Override hardcoded script configuration options by local config file.
+# The file is expected to be in the current working directory, but it
+# does not need to exists.
 do "imap-dmarcts.conf";
 
 # Get command line options.
 my %options = ();
-getopts('drx', \%options);
+GetOptions( \%options, 'd', 'r', 'x', 'delete' );
 
 # Set default behaviour.
 use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2 };
@@ -74,7 +106,6 @@ if ($ARGV[0]) {
 
 # Evaluate command line options
 if (exists $options{r}) {$reports_replace = 1;}
-if (exists $options{d}) {$debug = 1;}
 if (exists $options{x}) {
 	if ($reports_source == TS_IMAP) {
 		print "The -x OPTION requires a PATH.\n";
@@ -83,12 +114,9 @@ if (exists $options{x}) {
 		$reports_source = TS_XML_FILE;
 	}
 }
-
-
-
-####################################################################
-### main ###########################################################
-####################################################################
+# Override config options by command line options.
+if (exists $options{d}) {$debug = 1;}
+if (exists $options{delete}) {$delete_reports = 1;}
 
 
 # Setup connection to database server.
@@ -110,87 +138,144 @@ if ($reports_source == TS_IMAP) {
 	# module uses eval, so we use $@ instead of $!
 	or die "IMAP Failure: $@";
 
+	# Set $imap to UID mode, which will force imap functions to use/return
+	# UIDs, instead of message sequence numbers. UIDs are not allowed to change
+	# during a session and are not allowed to be used twice. Looping over
+	# message sequence numbers and deleting a msg in between could have
+	# unwanted side effects.
+	$imap->Uid(1);
+
 	if ($debug == 1) {
 		# How many msgs are we going to process?
-		print "There are ". $imap->message_count($readfolder).
-			" messages in the $readfolder folder.\n";
+		print "There are ". $imap->message_count($imapreadfolder).
+			" messages in the $imapreadfolder folder.\n";
 	}
 
-	# Select the mailbox to get messages from.
-	$imap->select($readfolder)
-		or die "IMAP Select Error: $!";
+	# Only select and search $imapreadfolder, if we actually
+	# have something to do.
+	if ($imap->message_count($imapreadfolder)) {
+		# Select the mailbox to get messages from.
+		$imap->select($imapreadfolder)
+			or die "IMAP Select Error: $!";
 
-	# Store each message as an array element.
-	my @msgs = $imap->search('ALL')
-		or die "Couldn't get all messages\n";
+		# Store each message as an array element.
+		my @msgs = $imap->search('ALL')
+			or die "Couldn't get all messages\n";
 
-	# Loop through IMAP messages.
-	foreach my $msg (@msgs) {
-		if ($debug == 1) {
-			print "--------------------------------\n";
-			print "The Current Message UID is: ";
-			print $imap->message_uid($msg). "\n";
-			print "--------------------------------\n";
+		# Loop through IMAP messages.
+		foreach my $msg (@msgs) {
+			if ($debug == 1) {
+				print "--------------------------------\n";
+				print "The Current Message UID is: ";
+				print $msg. "\n";
+				print "--------------------------------\n";
+			}
+
+			my $xml = getXMLFromMessage($imap->message_string($msg),"IMAP message with UID #".$msg);
+			if (!$xml) {
+				next; # Empty xml report data, nothing to work on.
+			}
+
+			if (!storeXMLInDatabase($xml)) {
+				next;
+			}
+
+			# Delete processed message files, if the --delete option is given.
+			# Otherwise move messages if $imapmovefolder is set.
+			if ($delete_reports) {
+				if ($debug == 1) {
+					print "Deleting processed IMAP message file.\n";
+				}
+				$imap->delete_message($msg)
+				or print "Could not delete IMAP message. [$@]\n";
+			} elsif ($imapmovefolder) {
+				if ($debug == 1) {
+					print "Moving (copy and delete) processed IMAP message file to IMAP folder $imapmovefolder\n";
+				}
+
+				# Try to create $imapmovefolder, if it does not exist.
+				if (!$imap->exists($imapmovefolder)) {
+					$imap->create($imapmovefolder)
+					or print "Could not create IMAP folder $imapmovefolder.\n";
+				}
+
+				# Try to move the message to $imapmovefolder.
+				my $newid = $imap->copy($imapmovefolder, [ $msg ]);
+				if (!$newid) {
+					print "Error on moving (copy and delete) processed IMAP message: Could not COPY message to IMAP folder <$imapmovefolder>!\n";
+					print "Messsage will not be moved/deleted. [$@]\n";
+				} else {
+					$imap->delete_message($msg)
+					or do {
+						print "Error on moving (copy and delete) processed IMAP message: Could not DELETE message\n";
+						print "after copying it to <$imapmovefolder>. [$@]\n";
+					}
+				}
+			}
 		}
 
-		my $xml = getXMLFromMessage($imap->message_string($msg),$msg);
-		if (!$xml) {
-			next; # Empty xml report data, nothing to work on.
-		}
-
-		if (!storeXMLInDatabase($xml)) {
-			next;
-		}
-
-		# Move Message to processed folder.
-		my $newuid = $imap->move($mvfolder, $imap->message_uid($msg))
-		or print "Could not move IMAP message: $@\n";
+		# Expunge and close the folder.
+		$imap->expunge($imapreadfolder);
+		$imap->close($imapreadfolder);
 	}
-
-	# Expunge and close the folder.
-	$imap->expunge($readfolder);
-	$imap->close($readfolder);
 
 	# We're all done with IMAP here.
 	$imap->logout();
 
 } else { # TS_MESSAGE_FILE or TS_XML_FILE
 
-	if ($debug == 1) {
-		# How many msgs are we going to process?
-		print "There are ".@ARGV. " messages to be processed.\n";
-	}
+	foreach my $a (@ARGV) {
+		# Linux bash supports wildcard expansion BEFORE the script is called, so here we only see a list of files.
+		# Other OS behave different, so we should not depend on that feature: Use glob on each argument to
+		# manually expand the argument, if possible.
+		my @file_list = glob($a);
 
-	foreach my $f (@ARGV) {
+		if ($debug == 1) {
+			# How many msgs are we going to process?
+			print "There are ". @file_list. " messages to be processed.\n";
+		}
 
-		my $xml;
-		if (open FILE, $f)
-		{
-			my $filecontent = join("", <FILE>);
-			close FILE;
-			if ($reports_source ==  TS_MESSAGE_FILE) {
-				# Get XML data from mime message.
-				$xml = getXMLFromMessage($filecontent,$f);
-			} else {
-				# Get XML data from XML file directly.
-				$xml = getXMLFromXMLString($filecontent);
-				if (!$xml) {
-					print "File <$f> does not seem to be a valid XML file. Skipped.\n";
-				}
+		foreach my $f (@file_list) {
+
+			if ($debug == 1) {
+				print "--------------------------------\n";
+				print "The Current Message is: ";
+				print $f. "\n";
+				print "--------------------------------\n";
 			}
-		} else {
-			print "Could not open file <$f>: $!. Skipped.\n";
-		}
 
-		if (!$xml) {
-			next; # Empty xml report data, nothing to work on.
-		}
+			my $xml;
+			if (open FILE, $f)
+			{
+				my $filecontent = join("", <FILE>);
+				close FILE;
+				if ($reports_source == TS_MESSAGE_FILE) {
+					# Get XML data from mime message.
+					$xml = getXMLFromMessage($filecontent,$f);
+				} else {
+					# Get XML data from XML file directly.
+					$xml = getXMLFromXMLString($filecontent);
+					if (!$xml) {
+						print "File <$f> does not seem to be a valid XML file. Skipped.\n";
+					}
+				}
+			} else {
+				print "Could not open file <$f>: $!. Skipped.\n";
+			}
 
-		if (!storeXMLInDatabase($xml)) {
-			next;
-		}
+			if (!$xml) {
+				next; # Empty xml report data, nothing to work on.
+			}
 
-		# Add logic to move processed files?
+			if (!storeXMLInDatabase($xml)) {
+				next;
+			}
+
+			# Delete processed message files, if the --delete option is given.
+			if ($delete_reports) {
+				unlink($f);
+			}
+		}
 	}
 }
 
@@ -328,7 +413,7 @@ sub getXMLFromMessage {
 			print "Failed to $unzip ZIP file (temp. location: <$location>) extracted from <$messagefile>. Skipped.\n";
 		}
 	} else {
-		print "Could not find an embedded ZIP in message <$messagefile>. Skipped.\n";
+		print "Could not find an embedded ZIP in <$messagefile>. Skipped.\n";
 	}
 
 	if($body) {$body->purge;}
@@ -345,6 +430,7 @@ sub getXMLFromXMLString {
 	eval {
 		my $xs = XML::Simple->new();
 		my $ref = $xs->XMLin($raw_xml, SuppressEmpty => '');
+		$ref->{'raw_xml'} = $raw_xml;
 
 		return $ref;
 	} or do {
@@ -393,16 +479,15 @@ sub storeXMLInDatabase {
 			}
 		} else {
 			print "Already have $xorg $id, skipped\n";
-			# The old inline code had a next here, which skipped the file-moving-operation.
-			# To keep the same behaviour, we return false here - but i think it would be better
-			# to return true, so the file which has already been processed is moved out of the way?
-			return 0;
+			# Do not store in DB, but return true, so the message can be moved
+			# out of the way, if configured to do so.
+			return 1;
 		}
 	}
 
-	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info,policy_adkim, policy_aspf, policy_p, policy_sp, policy_pct)
-			VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?,?,?,?,?,?)};
-	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct);
+	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info,policy_adkim, policy_aspf, policy_p, policy_sp, policy_pct, raw_xml)
+			VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?,?,?,?,?,?,?)};
+	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct,$xml->{'raw_xml'});
 	if ($dbh->errstr) {
 		print "Cannot add report to database (". $dbh->errstr ."). Skipped.\n";
 		return 0;
@@ -526,6 +611,7 @@ sub checkDatabase {
 				"policy_p"		, "varchar(20) NULL",
 				"policy_sp"		, "varchar(20) NULL",
 				"policy_pct"		, "tinyint unsigned",
+				"raw_xml"		, "MEDIUMTEXT",
 				],
 			additional_definitions 		=> "PRIMARY KEY (serial), UNIQUE KEY domain (domain,reportid)",
 			table_options			=> "",
