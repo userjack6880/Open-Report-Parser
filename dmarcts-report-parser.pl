@@ -1,15 +1,13 @@
 #!/usr/bin/perl
 
 ###################################################################
-#  Brought to you by http://www.techsneeze.com
-#  Portions of the script are based on info from:
-#  http://eric.lubow.org/2007/perl/mailimapclient/
-#  ...as well as John Levine's rddmarc:
-#  http://www.taugh.com/rddmarc  
-###################################################################
-# dmarcts-report-parser - A Perl DMARC report parser
-# Copyright (C) 2016 TechSneeze.com
+# dmarcts-report-parser - A Perl based tool to parse DMARC reports from 
+# an IMAP mailbox or from the filesystem, and insert the information into a database.  
+# ( Formerly known as imap-dmarcts )
 #
+# Copyright (C) 2016 TechSneeze.com and John Bieling ( https://github.com/jobisoft/ )
+#
+# Available at:
 # https://github.com/techsneeze/dmarcts-report-parser
 #
 # This program is free software: you can redistribute it and/or modify it under
@@ -23,6 +21,36 @@
 #
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see <http://www.gnu.org/licenses/>.
+###################################################################
+# The subroutines storeXMLInDatabase() and getXMLFromMessage() are
+# based on John R. Levine's rddmarc (http://www.taugh.com/rddmarc/)
+# The following special conditions apply to those subroutines:
+# 
+# Copyright 2012, Taughannock Networks. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
+#
+# Redistributions in binary form must reproduce the above copyright
+# notice, this list of conditions and the following disclaimer in the
+# documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+# OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+# WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
 ###################################################################
 
 # Usage:
