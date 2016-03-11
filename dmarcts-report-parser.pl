@@ -206,19 +206,19 @@ if ($reports_source == TS_IMAP) {
 				or print "Could not delete IMAP message. [$@]\n";
 			} elsif ($imapmovefolder) {
 				if ($debug == 1) {
-					print "Moving (copy and delete) processed IMAP message file to IMAP folder $imapmovefolder\n";
+					print "Moving (copy and delete) processed IMAP message file to IMAP folder: $imapmovefolder\n";
 				}
 
 				# Try to create $imapmovefolder, if it does not exist.
 				if (!$imap->exists($imapmovefolder)) {
 					$imap->create($imapmovefolder)
-					or print "Could not create IMAP folder $imapmovefolder.\n";
+					or print "Could not create IMAP folder: $imapmovefolder.\n";
 				}
 
 				# Try to move the message to $imapmovefolder.
 				my $newid = $imap->copy($imapmovefolder, [ $msg ]);
 				if (!$newid) {
-					print "Error on moving (copy and delete) processed IMAP message: Could not COPY message to IMAP folder <$imapmovefolder>!\n";
+					print "Error on moving (copy and delete) processed IMAP message: Could not COPY message to IMAP folder: <$imapmovefolder>!\n";
 					print "Messsage will not be moved/deleted. [$@]\n";
 				} else {
 					$imap->delete_message($msg)
