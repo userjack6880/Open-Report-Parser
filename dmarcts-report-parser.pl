@@ -1,11 +1,11 @@
 #!/usr/bin/perl
 
-###################################################################
-# dmarcts-report-parser - A Perl based tool to parse DMARC reports from 
-# an IMAP mailbox or from the filesystem, and insert the information into a database.  
+################################################################################
+# dmarcts-report-parser - A Perl based tool to parse DMARC reports from an IMAP
+# mailbox or from the filesystem, and insert the information into a database.
 # ( Formerly known as imap-dmarcts )
 #
-# Copyright (C) 2016 TechSneeze.com and John Bieling ( https://github.com/jobisoft/ )
+# Copyright (C) 2016 TechSneeze.com and John Bieling
 #
 # Available at:
 # https://github.com/techsneeze/dmarcts-report-parser
@@ -21,48 +21,50 @@
 #
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see <http://www.gnu.org/licenses/>.
-###################################################################
-# The subroutines storeXMLInDatabase() and getXMLFromMessage() are
-# based on John R. Levine's rddmarc (http://www.taugh.com/rddmarc/)
-# The following special conditions apply to those subroutines:
+################################################################################
+
+################################################################################
+# The subroutines storeXMLInDatabase() and getXMLFromMessage() are based on
+# John R. Levine's rddmarc (http://www.taugh.com/rddmarc/). The following
+# special conditions apply to those subroutines:
 # 
 # Copyright 2012, Taughannock Networks. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions
-# are met:
+# modification, are permitted provided that the following conditions are met:
 #
-# Redistributions of source code must retain the above copyright
-# notice, this list of conditions and the following disclaimer.
+# Redistributions of source code must retain the above copyright notice, this
+# list of conditions and the following disclaimer.
 #
-# Redistributions in binary form must reproduce the above copyright
-# notice, this list of conditions and the following disclaimer in the
-# documentation and/or other materials provided with the distribution.
+# Redistributions in binary form must reproduce the above copyright notice, this
+# list of conditions and the following disclaimer in the documentation and/or
+# other materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-# OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
-# WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-###################################################################
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+################################################################################
 
+################################################################################
 # Usage:
 #    ./dmarcts-report-parser.pl [OPTIONS] [PATH]
 #
-# If PATH is not provided, reports are read from an IMAP server, otherwise they are read
-# from PATH from local filesystem. PATH can be a filename of a single mime message file or
-# multiple mime message files - wildcard expression are allowed.
+# If PATH is not provided, reports are read from an IMAP server, otherwise they
+# are read from PATH from local filesystem. PATH can be a filename of a single
+# mime message file or multiple mime message files - wildcard expression are
+# allowed.
 #
-# To run, this script needs custom configurations: a database server and credentials
-# and (if used) an IMAP server and credentials. These values can be set inside the script
-# or by providing them via <dmarcts-report-parser.conf> in the current working directory.
+# To run, this script needs custom configurations: a database server and
+# credentials and (if used) an IMAP server and credentials. These values can be
+# set inside the script or by providing them via <dmarcts-report-parser.conf> in
+# the current working directory.
 #
 # The following options are always allowed:
 #        -d : Print debug info.
@@ -73,6 +75,7 @@
 # If a PATH is given, the following option is also allowed:
 #        -x : Files specified by PATH are XML report files, rather than
 #             mime messages containing the XML report files.
+################################################################################
 
 
 
@@ -94,15 +97,18 @@ use Socket6;
 use PerlIO::gzip;
 
 # Define all possible configuration options.
-our ($debug, $delete_reports, $dbname, $dbuser, $dbpass, $dbhost, $imapserver, $imapuser, $imappass, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder);
+our ($debug, $delete_reports, $dbname, $dbuser, $dbpass, $dbhost,
+	$imapserver, $imapuser, $imappass, $imapssl, $imaptls,
+	$imapmovefolder, $imapreadfolder);
 
 
-####################################################################
-### configuration ##################################################
-####################################################################
 
-# If IMAP access is not used, config options starting with $imap
-# do not need to be set and are ignored.
+################################################################################
+### configuration ##############################################################
+################################################################################
+
+# If IMAP access is not used, config options starting with $imap do not need to
+# be set and are ignored.
 
 $debug = 0;
 $delete_reports = 0;
@@ -119,19 +125,19 @@ $imapssl = '0'; # If set to 1, remember to change server port to 993.
 $imaptls = '1'; # Enabled as the default and best-practice.
 $imapreadfolder = 'Inbox';
 
-# If $imapmovefolder is set, processed IMAP messages
-# will be moved (overruled by the --delete option!)
+# If $imapmovefolder is set, processed IMAP messages will be moved (overruled by
+# the --delete option!)
 $imapmovefolder = 'Inbox.processed';
 
 
 
-####################################################################
-### main ###########################################################
-####################################################################
+################################################################################
+### main #######################################################################
+################################################################################
 
-# Override hardcoded script configuration options by local config file.
-# The file is expected to be in the current working directory, but it
-# does not need to exists.
+# Override hardcoded script configuration options by local config file. The file
+# is expected to be in the current working directory, but it does not need to
+# exists.
 do "dmarcts-report-parser.conf";
 
 # Get command line options.
@@ -183,9 +189,9 @@ if ($reports_source == TS_IMAP) {
 	or die "IMAP Failure: $@";
 
 	# Set $imap to UID mode, which will force imap functions to use/return
-	# UIDs, instead of message sequence numbers. UIDs are not allowed to change
-	# during a session and are not allowed to be used twice. Looping over
-	# message sequence numbers and deleting a msg in between could have
+	# UIDs, instead of message sequence numbers. UIDs are not allowed to
+	# change during a session and are not allowed to be used twice. Looping
+	# over message sequence numbers and deleting a msg in between could have
 	# unwanted side effects.
 	$imap->Uid(1);
 
@@ -224,8 +230,8 @@ if ($reports_source == TS_IMAP) {
 				next;
 			}
 
-			# Delete processed message files, if the --delete option is given.
-			# Otherwise move messages if $imapmovefolder is set.
+			# Delete processed message files, if the --delete option
+			# is given. Otherwise move msgs if $imapmovefolder is set.
 			if ($delete_reports) {
 				if ($debug == 1) {
 					print "Deleting processed IMAP message file.\n";
@@ -269,9 +275,10 @@ if ($reports_source == TS_IMAP) {
 } else { # TS_MESSAGE_FILE or TS_XML_FILE
 
 	foreach my $a (@ARGV) {
-		# Linux bash supports wildcard expansion BEFORE the script is called, so here we only see a list of files.
-		# Other OS behave different, so we should not depend on that feature: Use glob on each argument to
-		# manually expand the argument, if possible.
+		# Linux bash supports wildcard expansion BEFORE the script is
+		# called, so here we only see a list of files. Other OS behave
+		# different, so we should not depend on that feature: Use glob
+		# on each argument to manually expand the argument, if possible.
 		my @file_list = glob($a);
 
 		if ($debug == 1) {
@@ -325,14 +332,13 @@ if ($reports_source == TS_IMAP) {
 
 
 
-####################################################################
-### subroutines ####################################################
-####################################################################
+################################################################################
+### subroutines ################################################################
+################################################################################
 
-# Walk through a mime message and return a reference to the
-# XML data containing the fields of the first ZIPed XML file
-# embedded into the message. The XML itself is not checked to
-# be a valid DMARC report.
+# Walk through a mime message and return a reference to the XML data containing
+# the fields of the first ZIPed XML file embedded into the message. The XML
+# itself is not checked to be a valid DMARC report.
 sub getXMLFromMessage {
 	my $message = $_[0];
 	my $messagefile = $_[1];
@@ -347,7 +353,7 @@ sub getXMLFromMessage {
 	my $subj = decode_mimewords($ent->get('subject'));
 
 	if ($debug == 1) {
-		print "Subject: $subj"; # Subject always contains \n, no need to print one.
+		print "Subject: $subj"; # Subject always contains a \n.
 		print "MimeType: $mtype\n";
 	}
 
@@ -370,7 +376,8 @@ sub getXMLFromMessage {
 		$isgzip = 1;
 
 	} elsif (lc $mtype eq "multipart/mixed") {
-		# At the moment, nease.net messages are multi-part, so we need to breakdown the attachments and find the zip.
+		# At the moment, nease.net messages are multi-part, so we need
+		# to breakdown the attachments and find the zip.
 		if ($debug == 1) {
 			print "This is a multipart attachment \n";
 		}
@@ -438,8 +445,9 @@ sub getXMLFromMessage {
 			open(XML,"unzip -p " . $location . " |")
 			or $unzip = "unzip"; # Will never happen.
 
-			# Sadly unzip -p never failes, but we can check if the filehandle points
-			# to an empty file and pretend it did not open/failed.
+			# Sadly unzip -p never failes, but we can check if the
+			# filehandle points to an empty file and pretend it did
+			# not open/failed.
 			if (eof XML) {
 				$unzip = "unzip";
 				close XML;
@@ -466,7 +474,7 @@ sub getXMLFromMessage {
 }
 
 
-####################################################################
+################################################################################
 
 sub getXMLFromXMLString {
 	my $raw_xml = $_[0];
@@ -483,10 +491,9 @@ sub getXMLFromXMLString {
 }
 
 
-####################################################################
+################################################################################
 
-# Extract fields from the XML report data hash and store them
-# into the database.
+# Extract fields from the XML report data hash and store them into the database.
 sub storeXMLInDatabase {
 	my $xml = $_[0]; # $xml is a reference to the xml data
 
@@ -510,8 +517,8 @@ sub storeXMLInDatabase {
 	{
 		if ($reports_replace) {
 			# $sid is the serial of a report with reportid=$id
-			# Remove this $sid from rptrecord and report table, but try to
-			# continue on failure rather than skipping.
+			# Remove this $sid from rptrecord and report table, but
+			# try to continue on failure rather than skipping.
 			print "Replacing $xorg $id.\n";
 			$dbh->do(qq{DELETE from rptrecord WHERE serial=?}, undef, $sid);
 			if ($dbh->errstr) {
@@ -523,8 +530,8 @@ sub storeXMLInDatabase {
 			}
 		} else {
 			print "Already have $xorg $id, skipped\n";
-			# Do not store in DB, but return true, so the message can be moved
-			# out of the way, if configured to do so.
+			# Do not store in DB, but return true, so the message can
+			# be moved out of the way, if configured to do so.
 			return 1;
 		}
 	}
@@ -629,13 +636,12 @@ sub storeXMLInDatabase {
 }
 
 
-####################################################################
+################################################################################
 
-# Check, if the database contains needed tables and columns.
-# The idea is, that the user only has to create the database/database_user.
-# All needed tables and columns are created automatically. Furthermore,
-# if new columns are introduced, the user does not need to make any
-# changes to the database himself.
+# Check, if the database contains needed tables and columns. The idea is, that
+# the user only has to create the database/database_user. All needed tables and
+# columns are created automatically. Furthermore, if new columns are introduced,
+# the user does not need to make any changes to the database himself.
 sub checkDatabase {
 	my $dbh = $_[0];
 
