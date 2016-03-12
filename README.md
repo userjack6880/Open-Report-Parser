@@ -17,7 +17,7 @@ To get your copy of the dmarcts-report-parser, you can either clone the reposito
 ```
 git clone https://github.com/techsneeze/dmarcts-report-parser.git
 ```
-or download a zip file containg all files from [here](https://github.com/techsneeze/dmarcts-report-parser/archive/master.zip). Once the files have been downloaded, you will need to copy/rename `dmarcts-report-parser.conf.sample` to `dmarcts-report-parser.conf`. Next, edit the configuration options in `dmarcts-report-parser.conf`:
+or download a zip file containg all files from [here](https://github.com/techsneeze/dmarcts-report-parser/archive/master.zip). Once the files have been downloaded, you will need to copy/rename `dmarcts-report-parser.conf.sample` to `dmarcts-report-parser.conf`. Next, edit the configuration options:
 
 ```
 ####################################################################
@@ -46,7 +46,7 @@ $imapreadfolder = 'Inbox';
 # will be moved (overruled by the --delete option!)
 $imapmovefolder = 'Inbox.processed';
 ```
-The script is looking for that config file in the current working directory.
+The script is looking for `dmarcts-report-parser.conf` in the current working directory.
 
 ## Usage
 
