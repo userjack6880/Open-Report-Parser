@@ -12,7 +12,13 @@ To install dependencies on Debian:
 apt-get install libmail-imapclient-perl libmime-tools-perl libxml-simple-perl \
 libclass-dbi-mysql-perl libio-socket-inet6-perl libio-socket-ip-perl libperlio-gzip-perl
 ```
-Once the script has been downloaded, you'll want to edit these basic configuration options at the top of the script.  Most of them are self-explanatory:
+
+To get your copy of the dmarcts-report-parser, you can either clone the repository:
+```
+git clone https://github.com/techsneeze/dmarcts-report-parser.git
+```
+or download a zip file containg all files from [here](https://github.com/techsneeze/dmarcts-report-parser/archive/master.zip). Once the files have been downloaded, you will need to copy/rename `dmarcts-report-parser.conf.sample` to `dmarcts-report-parser.conf`. Next, edit the configuration options:
+
 ```
 ####################################################################
 ### configuration ##################################################
@@ -40,7 +46,7 @@ $imapreadfolder = 'Inbox';
 # will be moved (overruled by the --delete option!)
 $imapmovefolder = 'Inbox.processed';
 ```
-The alternative is to provide these lines in an `dmarcts-report-parser.conf` file in the current working directory. If that file is found, configuration options are taken from there.
+The script is looking for `dmarcts-report-parser.conf` in the current working directory.
 
 ## Usage
 
@@ -49,7 +55,7 @@ The alternative is to provide these lines in an `dmarcts-report-parser.conf` fil
 ```
 If `PATH` is not provided, reports are read from an IMAP server, otherwise they are read from PATH from local filesystem. PATH can be a filename of a single mime message file or multiple mime message files - wildcard expression are allowed.
 
-**Remember**: To run, this script needs custom configurations: a database server and credentials and (if used) an IMAP server and credentials. These values can be set inside the script or by providing them via `imap-dmarcts.conf` in the current working directory.
+**Remember**: To run, this script needs custom configurations: a database server and credentials and (if used) an IMAP server and credentials. These values must be in the config file as described above.
 
 The following options are always allowed:
 ```
