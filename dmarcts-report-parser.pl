@@ -104,41 +104,12 @@ our ($debug, $delete_reports, $dbname, $dbuser, $dbpass, $dbhost,
 
 
 ################################################################################
-### configuration ##############################################################
-################################################################################
-
-# If IMAP access is not used, config options starting with $imap do not need to
-# be set and are ignored.
-
-$debug = 0;
-$delete_reports = 0;
-
-$dbname = 'dmarc';
-$dbuser = 'dmarc';
-$dbpass = 'xxx';
-$dbhost = ''; # Set the hostname if we can't connect to the local socket.
-
-$imapserver = 'mail.example.com:143';
-$imapuser = 'dmarcreports';
-$imappass = 'xxx';
-$imapssl = '0'; # If set to 1, remember to change server port to 993.
-$imaptls = '1'; # Enabled as the default and best-practice.
-$imapreadfolder = 'Inbox';
-
-# If $imapmovefolder is set, processed IMAP messages will be moved (overruled by
-# the --delete option!)
-$imapmovefolder = 'Inbox.processed';
-
-
-
-################################################################################
 ### main #######################################################################
 ################################################################################
 
-# Override hardcoded script configuration options by local config file. The file
-# is expected to be in the current working directory, but it does not need to
-# exists.
-do "dmarcts-report-parser.conf";
+# Load script configuration options from local config file. The file is expected
+# to be in the current working directory.
+do "dmarcts-report-parser.conf" or die "Could not read config file 'dmarcts-report-parser.conf' from current working directory.";
 
 # Get command line options.
 my %options = ();
