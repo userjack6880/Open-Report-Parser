@@ -109,7 +109,9 @@ our ($debug, $delete_reports, $dbname, $dbuser, $dbpass, $dbhost,
 
 # Load script configuration options from local config file. The file is expected
 # to be in the current working directory.
-do "dmarcts-report-parser.conf" or die "Could not read config file 'dmarcts-report-parser.conf' from current working directory.";
+do "dmarcts-report-parser.conf";
+if ( ! -e "dmarcts-report-parser.conf" )
+	{die "Could not read config file 'dmarcts-report-parser.conf' from current working directory."};
 
 # Get command line options.
 my %options = ();
