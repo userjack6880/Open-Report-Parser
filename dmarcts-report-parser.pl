@@ -195,19 +195,31 @@ if ($reports_source == TS_IMAP) {
 			}
 
 			my $xml = getXMLFromMessage($imap->message_string($msg),"IMAP message with UID #".$msg);
-			if (!$xml) {
-				next; # Empty xml report data, nothing to work on.
+			# If !$xml, the mail is probably not a DMARC report, so
+			# do not storeXMLInDatabase.
+			if ($xml) {
+				# If storeXMLInDatabase returns false, there was some sort
+				# of database storage failure and we MUST stop the file
+				# procession, because it is not pushed into the database.
+				# The user must investigate this issue.
+				if (!storeXMLInDatabase($xml)) {
+					next;
+				}
 			}
 
-			if (!storeXMLInDatabase($xml)) {
-				next;
-			}
 
 			# Delete processed message files, if the --delete option
 			# is given. Otherwise move msgs if $imapmovefolder is set.
 			if ($delete_reports) {
 				if ($debug == 1) {
 					print "Deleting processed IMAP message file.\n";
+				}
+				if (!$xml) {
+					# A mail which does not look like a DMARC report
+					# has been processed and should now be deleted.
+					# Print its content so it gets send as cron
+					# message, so the user can still investigate.
+					print $imap->message_string($msg)."\n"
 				}
 				$imap->delete_message($msg)
 				or print "Could not delete IMAP message. [$@]\n";
@@ -269,9 +281,10 @@ if ($reports_source == TS_IMAP) {
 			}
 
 			my $xml;
+			my $filecontent;
 			if (open FILE, $f)
 			{
-				my $filecontent = join("", <FILE>);
+				$filecontent = join("", <FILE>);
 				close FILE;
 				if ($reports_source == TS_MESSAGE_FILE) {
 					# Get XML data from mime message.
@@ -285,18 +298,36 @@ if ($reports_source == TS_IMAP) {
 				}
 			} else {
 				print "Could not open file <$f>: $!. Skipped.\n";
-			}
-
-			if (!$xml) {
-				next; # Empty xml report data, nothing to work on.
-			}
-
-			if (!storeXMLInDatabase($xml)) {
+				# Could not retrieve filecontent, so it is not 
+				# possible to --delete file and send filecontent
+				# as cron message. The user has to look at the
+				# actual file. The skipped message must be send
+				# on each cron.
 				next;
 			}
 
-			# Delete processed message files, if the --delete option is given.
+			# If !$xml, the file/mail is probably not a DMARC report.
+			# So do not storeXMLInDatabase.
+			if ($xml) {
+				# If storeXMLInDatabase returns false, there was some sort
+				# of database storage failure and we MUST stop the file
+				# procession, because it is not pushed into the database.
+				# The user must investigate this issue.
+				if (!storeXMLInDatabase($xml)) {
+					next;
+				}
+			}
+
+			# Delete processed message files, if the --delete option
+			# is given.
 			if ($delete_reports) {
+				if (!$xml) {
+					# A mail which does not look like a DMARC report
+					# has been processed and should now be deleted.
+					# Print its content so it gets send as cron
+					# message, so the user can still investigate.
+					print $filecontent."\n"
+				}
 				unlink($f);
 			}
 		}
