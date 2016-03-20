@@ -7,10 +7,17 @@ A Perl based tool to parse DMARC reports, based on John Levine's [rddmarc](http:
 
 ## Installation and Configuration
 
-To install dependencies on Debian:
+To install dependencies...
+
+### on Debian:
 ```
 apt-get install libmail-imapclient-perl libmime-tools-perl libxml-simple-perl \
 libclass-dbi-mysql-perl libio-socket-inet6-perl libio-socket-ip-perl libperlio-gzip-perl
+```
+### on Fedora (Fedora 23):
+```
+sudo dnf install perl-Mail-IMAPClient perl-MIME-tools perl-XML-Simple perl-DBI \
+ perl-Socket6 perl-PerlIO-gzip perl-DBD-MySQL
 ```
 
 To get your copy of the dmarcts-report-parser, you can either clone the repository:
