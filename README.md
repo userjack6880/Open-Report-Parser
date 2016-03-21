@@ -17,13 +17,13 @@ libclass-dbi-mysql-perl libio-socket-inet6-perl libio-socket-ip-perl libperlio-g
 ### on Fedora (Fedora 23):
 ```
 sudo dnf install perl-Mail-IMAPClient perl-MIME-tools perl-XML-Simple perl-DBI \
- perl-Socket6 perl-PerlIO-gzip perl-DBD-MySQL
+ perl-Socket6 perl-PerlIO-gzip perl-DBD-MySQL unzip
 ```
 ### on CentOS (CentOS 7):
 ```
 yum install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 yum install perl-Mail-IMAPClient perl-MIME-tools perl-XML-Simple perl-DBI \
- perl-Socket6 perl-PerlIO-gzip perl-DBD-MySQL
+ perl-Socket6 perl-PerlIO-gzip perl-DBD-MySQL unzip
  ```
 
 To get your copy of the dmarcts-report-parser, you can either clone the repository:
