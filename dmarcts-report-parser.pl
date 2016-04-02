@@ -413,8 +413,7 @@ sub getXMLFromMessage {
 			} else {
 				# Skip the attachment otherwise.
 				if($debug == 1) {
-					print $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
-					print "\n";
+					print "Skipped an unknown attachment \n";
 				}
 				next; # of parts
 			}
