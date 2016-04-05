@@ -99,7 +99,7 @@ use PerlIO::gzip;
 # Define all possible configuration options.
 our ($debug, $delete_reports, $dbname, $dbuser, $dbpass, $dbhost,
 	$imapserver, $imapuser, $imappass, $imapssl, $imaptls,
-	$imapmovefolder, $imapreadfolder);
+	$imapmovefolder, $imapreadfolder, $imapopt);
 
 
 
@@ -152,10 +152,15 @@ checkDatabase($dbh);
 # Process messages based on $reports_source.
 if ($reports_source == TS_IMAP) {
 
+	# Disable verify mode for TLS support.
+        if ($imaptls == 1) {
+                $imapopt = [ SSL_verify_mode => 0 ];
+        }
+
 	# Setup connection to IMAP server.
 	my $imap = Mail::IMAPClient->new( Server => $imapserver,
 		Ssl => $imapssl,
-		Starttls => $imaptls,
+		Starttls => $imapopt,
 		User => $imapuser,
 		Password => $imappass)
 	# module uses eval, so we use $@ instead of $!
