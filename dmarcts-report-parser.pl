@@ -658,7 +658,7 @@ sub checkDatabase {
 			column_definitions 		=> [
 				"serial"		, "int(10) unsigned NOT NULL AUTO_INCREMENT",
 				"mindate"		, "timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-				"maxdate"		, "timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'",
+				"maxdate"		, "timestamp NULL",
 				"domain"		, "varchar(255) NOT NULL",
 				"org"			, "varchar(255) NOT NULL",
 				"reportid"		, "varchar(255) NOT NULL",
