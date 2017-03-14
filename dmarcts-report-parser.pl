@@ -432,21 +432,17 @@ sub getXMLFromMessage {
 			if(lc $part->mime_type eq "application/gzip") {
 				$location = $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
 				$isgzip = 1;
-				if ($debug == 1) {
-					print $location;
-					print "\n";
-				}
+				print "$location\n" if $debug;
 				last; # of parts
 			} elsif(lc $part->mime_type eq "application/x-zip-compressed"
-				or $part->mime_type eq "application/zip"
-				or lc $part->mime_type eq "application/octet-stream") {
+				or $part->mime_type eq "application/zip") {
 			
 				$location = $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
-
-				if ($debug == 1) {
-					print $location;
-					print "\n";
-				}
+				print "$location\n" if $debug;
+			} elsif(lc $part->mime_type eq "application/octet-stream") {
+				$location = $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
+				$isgzip = 1 if $location =~ /\.gz$/;
+				print "$location\n" if $debug;
 			} else {
 				# Skip the attachment otherwise.
 				if($debug == 1) {
