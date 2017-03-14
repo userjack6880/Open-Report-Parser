@@ -595,6 +595,7 @@ sub storeXMLInDatabase {
 		#print "ip $ip\n";
 		my $count = $r{'row'}->{'count'};
 		my $disp = $r{'row'}->{'policy_evaluated'}->{'disposition'};
+		 # some reports don't have dkim, "-" is default for these
 		my $dkim_align = $r{'row'}->{'policy_evaluated'}->{'dkim'} || "-";
 		my $spf_align = $r{'row'}->{'policy_evaluated'}->{'spf'};
 		
@@ -652,6 +653,7 @@ sub storeXMLInDatabase {
 			print "Cannot add report data to database (". $dbh->errstr ."). Skipped.\n";
 			return 0;
 		}
+		return 1;
 	}
 
 	my $res = 1;
@@ -669,6 +671,10 @@ sub storeXMLInDatabase {
 		}
 	} else {
 		print "mystery type " . ref($record) . "\n";
+	}
+
+	if ($debug && $res <= 0) {
+		print "Result $res XML: $xml->{raw_xml}\n";
 	}
 
 	return $res;
@@ -700,7 +706,7 @@ sub checkDatabase {
 				"policy_p"		, "varchar(20) NULL",
 				"policy_sp"		, "varchar(20) NULL",
 				"policy_pct"		, "tinyint unsigned",
-				"raw_xml"		, "MEDIUMTEXT",
+				"raw_xml"		, "mediumtext",
 				],
 			additional_definitions 		=> "PRIMARY KEY (serial), UNIQUE KEY domain (domain,reportid)",
 			table_options			=> "",
@@ -717,8 +723,8 @@ sub checkDatabase {
 				"dkimresult"		, "enum('none','pass','fail','neutral','policy','temperror','permerror')",
 				"spfdomain"		, "varchar(255)",
 				"spfresult"		, "enum('none','neutral','pass','fail','softfail','temperror','permerror')",
-				"spf_align"		, "enum('fail', 'pass') NOT NULL",
-				"dkim_align"		, "enum('fail', 'pass') NOT NULL",
+				"spf_align"		, "enum('fail','pass') NOT NULL",
+				"dkim_align"		, "enum('fail','pass','-') NOT NULL",
 				"identifier_hfrom"	, "varchar(255)",
 				],
 			additional_definitions 		=> "KEY serial (serial,ip), KEY serial6 (serial,ip6)",
@@ -756,14 +762,14 @@ sub checkDatabase {
 			# Add options.
 			$sql_create_table .= ") " . $tables{$table}{"table_options"} . ";";
 			# Create table.
-			##print $sql_create_table;
+			print "$sql_create_table\n" if $debug;
 			$dbh->do($sql_create_table);
 		} else {
 
 			#Table exists, get  current columns in this table from DB.
 			my %db_col_exists = ();
 			for ( @{ $dbh->selectall_arrayref( "SHOW COLUMNS FROM $table;") } ) {
-				$db_col_exists{$_->[0]} = 1;
+				$db_col_exists{$_->[0]} = $_->[1];
 			};
 
 			# Check if all needed columns are present, if not add them at the desired position.
@@ -771,11 +777,18 @@ sub checkDatabase {
 			for (my $i=0; $i <= $#{$tables{$table}{"column_definitions"}}; $i+=2) {
 				my $col_name = $tables{$table}{"column_definitions"}[$i];
 				my $col_def = $tables{$table}{"column_definitions"}[$i+1];
+				my $short_def = $col_def;
+				$short_def =~ s/ +.*$//;
 				if (!$db_col_exists{$col_name}) {
 					# add column
 					my $sql_add_column = "ALTER TABLE $table ADD $col_name $col_def $insert_pos;";
-					##print $sql_add_column;
+					print "$sql_add_column\n" if $debug;
 					$dbh->do($sql_add_column);
+				} elsif ($db_col_exists{$col_name} !~ /^\Q$short_def\E/) {
+					# modify column
+					my $sql_modify_column = "ALTER TABLE $table MODIFY COLUMN $col_name $col_def;";
+					print "$sql_modify_column\n" if $debug;
+					$dbh->do($sql_modify_column);
 				}
 				$insert_pos = "AFTER $col_name";
 			}
