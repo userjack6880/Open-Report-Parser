@@ -87,6 +87,7 @@ use warnings;
 use Getopt::Long;
 use Data::Dumper;
 use Mail::IMAPClient;
+use Mail::Mbox::MessageParser;
 use MIME::Words qw(decode_mimewords);
 use MIME::Parser;
 use MIME::Parser::Filer;
@@ -115,10 +116,10 @@ if ( ! -e "dmarcts-report-parser.conf" )
 
 # Get command line options.
 my %options = ();
-GetOptions( \%options, 'd', 'r', 'x', 'delete' );
+GetOptions( \%options, 'd', 'r', 'x', 'm', 'delete' );
 
 # Set default behaviour.
-use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2 };
+use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2, TS_MBOX_FILE => 3 };
 our $reports_source = TS_IMAP;
 our $reports_replace = 0;
 
@@ -137,6 +138,17 @@ if (exists $options{x}) {
 		$reports_source = TS_XML_FILE;
 	}
 }
+if (exists $options{m}) {
+	if ($reports_source == TS_IMAP) {
+		print "The -m OPTION requires a PATH.\n";
+		exit;
+	} elsif ($reports_source == TS_IMAP) {
+		print "The -m and -x OPTIONS cannot be used both.\n";
+		exit;
+        } else {
+		$reports_source = TS_MBOX_FILE;
+	}
+}
 # Override config options by command line options.
 if (exists $options{d}) {$debug = 1;}
 if (exists $options{delete}) {$delete_reports = 1;}
@@ -153,9 +165,9 @@ checkDatabase($dbh);
 if ($reports_source == TS_IMAP) {
 
 	# Disable verify mode for TLS support.
-        if ($imaptls == 1) {
-                $imapopt = [ SSL_verify_mode => 0 ];
-        }
+	if ($imaptls == 1) {
+		$imapopt = [ SSL_verify_mode => 0 ];
+	}
 
 	# Setup connection to IMAP server.
 	my $imap = Mail::IMAPClient->new( Server => $imapserver,
@@ -277,7 +289,6 @@ if ($reports_source == TS_IMAP) {
 		}
 
 		foreach my $f (@file_list) {
-
 			if ($debug == 1) {
 				print "--------------------------------\n";
 				print "The Current Message is: ";
@@ -287,8 +298,21 @@ if ($reports_source == TS_IMAP) {
 
 			my $xml;
 			my $filecontent;
-			if (open FILE, $f)
-			{
+			my $err = 0;
+			if ($reports_source == TS_MBOX_FILE) {
+				 my $parser = Mail::Mbox::MessageParser->new({"file_name" => $f, "debug" => $debug, "enable_cache" => 0});
+				 my $num = 1;
+				 do {
+					$filecontent = $parser->read_next_email();
+					if ($filecontent) {
+						my $mboxxml = getXMLFromMessage($filecontent,"$f message $num");
+						if($mboxxml && storeXMLInDatabase($mboxxml) <= 0) {
+							$err = 1;
+						}
+					}
+					++$num;
+				} while (defined($filecontent));
+			} elsif (open FILE, $f) {
 				$filecontent = join("", <FILE>);
 				close FILE;
 				if ($reports_source == TS_MESSAGE_FILE) {
@@ -318,20 +342,25 @@ if ($reports_source == TS_IMAP) {
 				# of database storage failure and we MUST stop the file
 				# procession, because it is not pushed into the database.
 				# The user must investigate this issue.
-				if (!storeXMLInDatabase($xml)) {
-					next;
+				if (storeXMLInDatabase($xml) <= 0) {
+					$err = 1;
 				}
+			} else {
+				$err = 1;
 			}
 
 			# Delete processed message files, if the --delete option
 			# is given.
-			if ($delete_reports) {
+			if ($delete_reports && !$err) {
 				if (!$xml) {
 					# A mail which does not look like a DMARC report
 					# has been processed and should now be deleted.
 					# Print its content so it gets send as cron
 					# message, so the user can still investigate.
 					print $filecontent."\n"
+				}
+				if($debug) {
+					print "Remove file <$f>.\n";
 				}
 				unlink($f);
 			}
@@ -502,6 +531,7 @@ sub getXMLFromXMLString {
 ################################################################################
 
 # Extract fields from the XML report data hash and store them into the database.
+# return 1 when ok, 0, for serious error and -1 for minor errors
 sub storeXMLInDatabase {
 	my $xml = $_[0]; # $xml is a reference to the xml data
 
@@ -565,7 +595,7 @@ sub storeXMLInDatabase {
 		#print "ip $ip\n";
 		my $count = $r{'row'}->{'count'};
 		my $disp = $r{'row'}->{'policy_evaluated'}->{'disposition'};
-		my $dkim_align = $r{'row'}->{'policy_evaluated'}->{'dkim'};
+		my $dkim_align = $r{'row'}->{'policy_evaluated'}->{'dkim'} || "-";
 		my $spf_align = $r{'row'}->{'policy_evaluated'}->{'spf'};
 		
 		my $identifier_hfrom = $r{'identifiers'}->{'header_from'};
@@ -624,23 +654,24 @@ sub storeXMLInDatabase {
 		}
 	}
 
+	my $res = 1;
 	if(ref $record eq "HASH") {
 		if($debug == 1){
 			print "single record\n";
 		}
-		dorow($serial,$record);
+		$res = -1 if !dorow($serial,$record);
 	} elsif(ref $record eq "ARRAY") {
 		if($debug == 1){
 			print "multi record\n";
 		}
 		foreach my $row (@$record) {
-			dorow($serial,$row);
+			$res = -1 if !dorow($serial,$row);
 		}
 	} else {
 		print "mystery type " . ref($record) . "\n";
 	}
 
-	return 1;
+	return $res;
 }
 
 
