@@ -581,7 +581,7 @@ sub storeXMLInDatabase {
 			VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?,?,?,?,?,?,?)};
 	my $storexml = $xml->{'raw_xml'};
 	if (length($storexml) > $maxsize_xml) {
-		print "Skipping store of large XML (".length($storexml)." bytes).\n";
+		print "Skipping storage of large XML (".length($storexml)." bytes).\n";
 		$storexml = "";
 	}
 	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct, $storexml);
