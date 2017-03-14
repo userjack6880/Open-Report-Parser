@@ -599,9 +599,9 @@ sub storeXMLInDatabase {
 		#print "ip $ip\n";
 		my $count = $r{'row'}->{'count'};
 		my $disp = $r{'row'}->{'policy_evaluated'}->{'disposition'};
-		 # some reports don't have dkim, "-" is default for these
-		my $dkim_align = $r{'row'}->{'policy_evaluated'}->{'dkim'} || "-";
-		my $spf_align = $r{'row'}->{'policy_evaluated'}->{'spf'};
+		 # some reports don't have dkim/spf, "unknown" is default for these
+		my $dkim_align = $r{'row'}->{'policy_evaluated'}->{'dkim'} || "unknown";
+		my $spf_align = $r{'row'}->{'policy_evaluated'}->{'spf'} || "unknown";
 		
 		my $identifier_hfrom = $r{'identifiers'}->{'header_from'};
 		
@@ -726,9 +726,9 @@ sub checkDatabase {
 				"dkimdomain"		, "varchar(255)",
 				"dkimresult"		, "enum('none','pass','fail','neutral','policy','temperror','permerror')",
 				"spfdomain"		, "varchar(255)",
-				"spfresult"		, "enum('none','neutral','pass','fail','softfail','temperror','permerror')",
-				"spf_align"		, "enum('fail','pass') NOT NULL",
-				"dkim_align"		, "enum('fail','pass','-') NOT NULL",
+				"spfresult"		, "enum('none','neutral','pass','fail','softfail','temperror','permerror','unknown')",
+				"spf_align"		, "enum('fail','pass','unknown') NOT NULL",
+				"dkim_align"		, "enum('fail','pass','unknown') NOT NULL",
 				"identifier_hfrom"	, "varchar(255)",
 				],
 			additional_definitions 		=> "KEY serial (serial,ip), KEY serial6 (serial,ip6)",
