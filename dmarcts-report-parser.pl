@@ -98,8 +98,8 @@ use Socket6;
 use PerlIO::gzip;
 
 # Define all possible configuration options.
-our ($debug, $delete_reports, $dbname, $dbuser, $dbpass, $dbhost,
-	$imapserver, $imapuser, $imappass, $imapssl, $imaptls,
+our ($debug, $delete_reports, $maxsize_xml, $dbname, $dbuser, $dbpass, $dbhost,
+	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $delete_failed,
 	$imapmovefolder, $imapreadfolder, $imapopt);
 
 
@@ -110,6 +110,10 @@ our ($debug, $delete_reports, $dbname, $dbuser, $dbpass, $dbhost,
 
 # Load script configuration options from local config file. The file is expected
 # to be in the current working directory.
+
+# defaults
+$maxsize_xml = 50000;
+# load configuration
 do "dmarcts-report-parser.conf";
 if ( ! -e "dmarcts-report-parser.conf" )
 	{die "Could not read config file 'dmarcts-report-parser.conf' from current working directory."};
@@ -224,10 +228,9 @@ if ($reports_source == TS_IMAP) {
 				}
 			}
 
-
 			# Delete processed message files, if the --delete option
 			# is given. Otherwise move msgs if $imapmovefolder is set.
-			if ($delete_reports) {
+			if ($delete_reports && ($xml || $delete_failed)) {
 				if ($debug == 1) {
 					print "Deleting processed IMAP message file.\n";
 				}
@@ -343,7 +346,7 @@ if ($reports_source == TS_IMAP) {
 				# procession, because it is not pushed into the database.
 				# The user must investigate this issue.
 				if (storeXMLInDatabase($xml) <= 0) {
-					$err = 1;
+					next;
 				}
 			} else {
 				$err = 1;
@@ -351,7 +354,7 @@ if ($reports_source == TS_IMAP) {
 
 			# Delete processed message files, if the --delete option
 			# is given.
-			if ($delete_reports && !$err) {
+			if ($delete_reports && (!$err || $delete_failed)) {
 				if (!$xml) {
 					# A mail which does not look like a DMARC report
 					# has been processed and should now be deleted.
@@ -576,7 +579,12 @@ sub storeXMLInDatabase {
 
 	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info,policy_adkim, policy_aspf, policy_p, policy_sp, policy_pct, raw_xml)
 			VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?,?,?,?,?,?,?)};
-	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct,$xml->{'raw_xml'});
+	my $storexml = $xml->{'raw_xml'};
+	if (length($storexml) > $maxsize_xml) {
+		print "Skipping store of large XML (".length($storexml)." bytes).\n";
+		$storexml = "";
+	}
+	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct, $storexml);
 	if ($dbh->errstr) {
 		print "Cannot add report to database (". $dbh->errstr ."). Skipped.\n";
 		return 0;

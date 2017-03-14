@@ -23,3 +23,8 @@ $imapreadfolder = 'Inbox';
 # If $imapmovefolder is set, processed IMAP messages will be moved (overruled by
 # the --delete option!)
 $imapmovefolder = 'Inbox.processed';
+
+# maximum size of XML files to store in database, long files can cause transaction aborts
+$maxsize_xml = 50000;
+# delete failed files (no XML, database errors)
+$delete_failed = 0;
