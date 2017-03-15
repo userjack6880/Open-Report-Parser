@@ -87,6 +87,7 @@ use warnings;
 use Getopt::Long;
 use Data::Dumper;
 use Mail::IMAPClient;
+use Mail::Mbox::MessageParser;
 use MIME::Words qw(decode_mimewords);
 use MIME::Parser;
 use MIME::Parser::Filer;
@@ -97,8 +98,8 @@ use Socket6;
 use PerlIO::gzip;
 
 # Define all possible configuration options.
-our ($debug, $delete_reports, $dbname, $dbuser, $dbpass, $dbhost,
-	$imapserver, $imapuser, $imappass, $imapssl, $imaptls,
+our ($debug, $delete_reports, $maxsize_xml, $dbname, $dbuser, $dbpass, $dbhost,
+	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $delete_failed,
 	$imapmovefolder, $imapreadfolder, $imapopt);
 
 
@@ -109,16 +110,20 @@ our ($debug, $delete_reports, $dbname, $dbuser, $dbpass, $dbhost,
 
 # Load script configuration options from local config file. The file is expected
 # to be in the current working directory.
+
+# defaults
+$maxsize_xml = 50000;
+# load configuration
 do "dmarcts-report-parser.conf";
 if ( ! -e "dmarcts-report-parser.conf" )
 	{die "Could not read config file 'dmarcts-report-parser.conf' from current working directory."};
 
 # Get command line options.
 my %options = ();
-GetOptions( \%options, 'd', 'r', 'x', 'delete' );
+GetOptions( \%options, 'd', 'r', 'x', 'm', 'delete' );
 
 # Set default behaviour.
-use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2 };
+use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2, TS_MBOX_FILE => 3 };
 our $reports_source = TS_IMAP;
 our $reports_replace = 0;
 
@@ -137,6 +142,17 @@ if (exists $options{x}) {
 		$reports_source = TS_XML_FILE;
 	}
 }
+if (exists $options{m}) {
+	if ($reports_source == TS_IMAP) {
+		print "The -m OPTION requires a PATH.\n";
+		exit;
+	} elsif ($reports_source == TS_IMAP) {
+		print "The -m and -x OPTIONS cannot be used both.\n";
+		exit;
+        } else {
+		$reports_source = TS_MBOX_FILE;
+	}
+}
 # Override config options by command line options.
 if (exists $options{d}) {$debug = 1;}
 if (exists $options{delete}) {$delete_reports = 1;}
@@ -153,9 +169,9 @@ checkDatabase($dbh);
 if ($reports_source == TS_IMAP) {
 
 	# Disable verify mode for TLS support.
-        if ($imaptls == 1) {
-                $imapopt = [ SSL_verify_mode => 0 ];
-        }
+	if ($imaptls == 1) {
+		$imapopt = [ SSL_verify_mode => 0 ];
+	}
 
 	# Setup connection to IMAP server.
 	my $imap = Mail::IMAPClient->new( Server => $imapserver,
@@ -212,10 +228,9 @@ if ($reports_source == TS_IMAP) {
 				}
 			}
 
-
 			# Delete processed message files, if the --delete option
 			# is given. Otherwise move msgs if $imapmovefolder is set.
-			if ($delete_reports) {
+			if ($delete_reports && ($xml || $delete_failed)) {
 				if ($debug == 1) {
 					print "Deleting processed IMAP message file.\n";
 				}
@@ -277,7 +292,6 @@ if ($reports_source == TS_IMAP) {
 		}
 
 		foreach my $f (@file_list) {
-
 			if ($debug == 1) {
 				print "--------------------------------\n";
 				print "The Current Message is: ";
@@ -287,8 +301,21 @@ if ($reports_source == TS_IMAP) {
 
 			my $xml;
 			my $filecontent;
-			if (open FILE, $f)
-			{
+			my $err = 0;
+			if ($reports_source == TS_MBOX_FILE) {
+				 my $parser = Mail::Mbox::MessageParser->new({"file_name" => $f, "debug" => $debug, "enable_cache" => 0});
+				 my $num = 1;
+				 do {
+					$filecontent = $parser->read_next_email();
+					if ($filecontent) {
+						my $mboxxml = getXMLFromMessage($filecontent,"$f message $num");
+						if($mboxxml && storeXMLInDatabase($mboxxml) <= 0) {
+							$err = 1;
+						}
+					}
+					++$num;
+				} while (defined($filecontent));
+			} elsif (open FILE, $f) {
 				$filecontent = join("", <FILE>);
 				close FILE;
 				if ($reports_source == TS_MESSAGE_FILE) {
@@ -318,20 +345,25 @@ if ($reports_source == TS_IMAP) {
 				# of database storage failure and we MUST stop the file
 				# procession, because it is not pushed into the database.
 				# The user must investigate this issue.
-				if (!storeXMLInDatabase($xml)) {
+				if (storeXMLInDatabase($xml) <= 0) {
 					next;
 				}
+			} else {
+				$err = 1;
 			}
 
 			# Delete processed message files, if the --delete option
 			# is given.
-			if ($delete_reports) {
+			if ($delete_reports && (!$err || $delete_failed)) {
 				if (!$xml) {
 					# A mail which does not look like a DMARC report
 					# has been processed and should now be deleted.
 					# Print its content so it gets send as cron
 					# message, so the user can still investigate.
 					print $filecontent."\n"
+				}
+				if($debug) {
+					print "Remove file <$f>.\n";
 				}
 				unlink($f);
 			}
@@ -400,21 +432,17 @@ sub getXMLFromMessage {
 			if(lc $part->mime_type eq "application/gzip") {
 				$location = $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
 				$isgzip = 1;
-				if ($debug == 1) {
-					print $location;
-					print "\n";
-				}
+				print "$location\n" if $debug;
 				last; # of parts
 			} elsif(lc $part->mime_type eq "application/x-zip-compressed"
-				or $part->mime_type eq "application/zip"
-				or lc $part->mime_type eq "application/octet-stream") {
+				or $part->mime_type eq "application/zip") {
 			
 				$location = $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
-
-				if ($debug == 1) {
-					print $location;
-					print "\n";
-				}
+				print "$location\n" if $debug;
+			} elsif(lc $part->mime_type eq "application/octet-stream") {
+				$location = $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
+				$isgzip = 1 if $location =~ /\.gz$/;
+				print "$location\n" if $debug;
 			} else {
 				# Skip the attachment otherwise.
 				if($debug == 1) {
@@ -502,6 +530,7 @@ sub getXMLFromXMLString {
 ################################################################################
 
 # Extract fields from the XML report data hash and store them into the database.
+# return 1 when ok, 0, for serious error and -1 for minor errors
 sub storeXMLInDatabase {
 	my $xml = $_[0]; # $xml is a reference to the xml data
 
@@ -546,7 +575,12 @@ sub storeXMLInDatabase {
 
 	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info,policy_adkim, policy_aspf, policy_p, policy_sp, policy_pct, raw_xml)
 			VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?,?,?,?,?,?,?)};
-	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct,$xml->{'raw_xml'});
+	my $storexml = $xml->{'raw_xml'};
+	if (length($storexml) > $maxsize_xml) {
+		print "Skipping storage of large XML (".length($storexml)." bytes).\n";
+		$storexml = "";
+	}
+	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct, $storexml);
 	if ($dbh->errstr) {
 		print "Cannot add report to database (". $dbh->errstr ."). Skipped.\n";
 		return 0;
@@ -565,8 +599,9 @@ sub storeXMLInDatabase {
 		#print "ip $ip\n";
 		my $count = $r{'row'}->{'count'};
 		my $disp = $r{'row'}->{'policy_evaluated'}->{'disposition'};
-		my $dkim_align = $r{'row'}->{'policy_evaluated'}->{'dkim'};
-		my $spf_align = $r{'row'}->{'policy_evaluated'}->{'spf'};
+		 # some reports don't have dkim/spf, "unknown" is default for these
+		my $dkim_align = $r{'row'}->{'policy_evaluated'}->{'dkim'} || "unknown";
+		my $spf_align = $r{'row'}->{'policy_evaluated'}->{'spf'} || "unknown";
 		
 		my $identifier_hfrom = $r{'identifiers'}->{'header_from'};
 		
@@ -622,25 +657,31 @@ sub storeXMLInDatabase {
 			print "Cannot add report data to database (". $dbh->errstr ."). Skipped.\n";
 			return 0;
 		}
+		return 1;
 	}
 
+	my $res = 1;
 	if(ref $record eq "HASH") {
 		if($debug == 1){
 			print "single record\n";
 		}
-		dorow($serial,$record);
+		$res = -1 if !dorow($serial,$record);
 	} elsif(ref $record eq "ARRAY") {
 		if($debug == 1){
 			print "multi record\n";
 		}
 		foreach my $row (@$record) {
-			dorow($serial,$row);
+			$res = -1 if !dorow($serial,$row);
 		}
 	} else {
 		print "mystery type " . ref($record) . "\n";
 	}
 
-	return 1;
+	if ($debug && $res <= 0) {
+		print "Result $res XML: $xml->{raw_xml}\n";
+	}
+
+	return $res;
 }
 
 
@@ -669,7 +710,7 @@ sub checkDatabase {
 				"policy_p"		, "varchar(20) NULL",
 				"policy_sp"		, "varchar(20) NULL",
 				"policy_pct"		, "tinyint unsigned",
-				"raw_xml"		, "MEDIUMTEXT",
+				"raw_xml"		, "mediumtext",
 				],
 			additional_definitions 		=> "PRIMARY KEY (serial), UNIQUE KEY domain (domain,reportid)",
 			table_options			=> "",
@@ -685,9 +726,9 @@ sub checkDatabase {
 				"dkimdomain"		, "varchar(255)",
 				"dkimresult"		, "enum('none','pass','fail','neutral','policy','temperror','permerror')",
 				"spfdomain"		, "varchar(255)",
-				"spfresult"		, "enum('none','neutral','pass','fail','softfail','temperror','permerror')",
-				"spf_align"		, "enum('fail', 'pass') NOT NULL",
-				"dkim_align"		, "enum('fail', 'pass') NOT NULL",
+				"spfresult"		, "enum('none','neutral','pass','fail','softfail','temperror','permerror','unknown')",
+				"spf_align"		, "enum('fail','pass','unknown') NOT NULL",
+				"dkim_align"		, "enum('fail','pass','unknown') NOT NULL",
 				"identifier_hfrom"	, "varchar(255)",
 				],
 			additional_definitions 		=> "KEY serial (serial,ip), KEY serial6 (serial,ip6)",
@@ -725,14 +766,14 @@ sub checkDatabase {
 			# Add options.
 			$sql_create_table .= ") " . $tables{$table}{"table_options"} . ";";
 			# Create table.
-			##print $sql_create_table;
+			print "$sql_create_table\n" if $debug;
 			$dbh->do($sql_create_table);
 		} else {
 
 			#Table exists, get  current columns in this table from DB.
 			my %db_col_exists = ();
 			for ( @{ $dbh->selectall_arrayref( "SHOW COLUMNS FROM $table;") } ) {
-				$db_col_exists{$_->[0]} = 1;
+				$db_col_exists{$_->[0]} = $_->[1];
 			};
 
 			# Check if all needed columns are present, if not add them at the desired position.
@@ -740,11 +781,18 @@ sub checkDatabase {
 			for (my $i=0; $i <= $#{$tables{$table}{"column_definitions"}}; $i+=2) {
 				my $col_name = $tables{$table}{"column_definitions"}[$i];
 				my $col_def = $tables{$table}{"column_definitions"}[$i+1];
+				my $short_def = $col_def;
+				$short_def =~ s/ +.*$//;
 				if (!$db_col_exists{$col_name}) {
 					# add column
 					my $sql_add_column = "ALTER TABLE $table ADD $col_name $col_def $insert_pos;";
-					##print $sql_add_column;
+					print "$sql_add_column\n" if $debug;
 					$dbh->do($sql_add_column);
+				} elsif ($db_col_exists{$col_name} !~ /^\Q$short_def\E/) {
+					# modify column
+					my $sql_modify_column = "ALTER TABLE $table MODIFY COLUMN $col_name $col_def;";
+					print "$sql_modify_column\n" if $debug;
+					$dbh->do($sql_modify_column);
 				}
 				$insert_pos = "AFTER $col_name";
 			}

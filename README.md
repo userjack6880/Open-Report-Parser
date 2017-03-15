@@ -82,6 +82,7 @@ If a `PATH` is given, the following option is also allowed:
 ```
          -x : Files specified by PATH are XML report files, rather than
               mime messages containing the XML report files.
+         -m : Files specified by PATH are mbox files with multiple MIME messages
 ```
 
 More info can currently be found at : [TechSneeze.com](http://www.techsneeze.com/how-parse-dmarc-reports-imap/)
