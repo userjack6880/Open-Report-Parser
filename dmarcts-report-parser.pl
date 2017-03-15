@@ -86,7 +86,7 @@ use warnings;
 # Use these modules
 use Getopt::Long;
 use IO::Compress::Gzip qw(gzip $GzipError);
-use Data::Dumper;
+#use Data::Dumper;
 use Mail::IMAPClient;
 use Mail::Mbox::MessageParser;
 use MIME::Base64 qw(encode_base64);
