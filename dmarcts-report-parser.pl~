@@ -585,7 +585,7 @@ sub storeXMLInDatabase {
 			print "Cannot add gzip XML for database ($GzipError). Skipped.\n";
 			$storexml = "";
 		} else {
-			$storexml = encode_base64($gzipdata, "");
+			$storexml = encode_base64($gzipdata, undef);
 		}
 	}
 	if (length($storexml) > $maxsize_xml) {
