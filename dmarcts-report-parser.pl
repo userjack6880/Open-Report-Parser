@@ -85,9 +85,11 @@ use warnings;
 
 # Use these modules
 use Getopt::Long;
+use IO::Compress::Gzip qw(gzip $GzipError);
 use Data::Dumper;
 use Mail::IMAPClient;
 use Mail::Mbox::MessageParser;
+use MIME::Base64 qw(encode_base64);
 use MIME::Words qw(decode_mimewords);
 use MIME::Parser;
 use MIME::Parser::Filer;
@@ -98,7 +100,8 @@ use Socket6;
 use PerlIO::gzip;
 
 # Define all possible configuration options.
-our ($debug, $delete_reports, $maxsize_xml, $dbname, $dbuser, $dbpass, $dbhost,
+our ($debug, $delete_reports, $maxsize_xml, $compress_xml,
+	$dbname, $dbuser, $dbpass, $dbhost,
 	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $delete_failed,
 	$imapmovefolder, $imapreadfolder, $imapopt);
 
@@ -223,7 +226,7 @@ if ($reports_source == TS_IMAP) {
 				# of database storage failure and we MUST stop the file
 				# procession, because it is not pushed into the database.
 				# The user must investigate this issue.
-				if (!storeXMLInDatabase($xml)) {
+				if (storeXMLInDatabase($xml) <= 0) {
 					next;
 				}
 			}
@@ -576,6 +579,15 @@ sub storeXMLInDatabase {
 	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info,policy_adkim, policy_aspf, policy_p, policy_sp, policy_pct, raw_xml)
 			VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?,?,?,?,?,?,?)};
 	my $storexml = $xml->{'raw_xml'};
+	if ($compress_xml) {
+		my $gzipdata;
+		if(!gzip(\$storexml => \$gzipdata)) {
+			print "Cannot add gzip XML for database ($GzipError). Skipped.\n";
+			$storexml = "";
+		} else {
+			$storexml = encode_base64($gzipdata, undef);
+		}
+	}
 	if (length($storexml) > $maxsize_xml) {
 		print "Skipping storage of large XML (".length($storexml)." bytes).\n";
 		$storexml = "";

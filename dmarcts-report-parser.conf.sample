@@ -26,5 +26,7 @@ $imapmovefolder = 'Inbox.processed';
 
 # maximum size of XML files to store in database, long files can cause transaction aborts
 $maxsize_xml = 50000;
+# store XML as base64 encopded gzip in database (save space, harder usable)
+$compress_xml = 0;
 # delete failed files (no XML, database errors)
 $delete_failed = 0;
