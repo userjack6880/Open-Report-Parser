@@ -12,7 +12,8 @@ To install dependencies...
 ### on Debian:
 ```
 apt-get install libmail-imapclient-perl libmime-tools-perl libxml-simple-perl \
-libclass-dbi-mysql-perl libio-socket-inet6-perl libio-socket-ip-perl libperlio-gzip-perl
+libclass-dbi-mysql-perl libio-socket-inet6-perl libio-socket-ip-perl libperlio-gzip-perl \
+libmail-mbox-messageparser-perl
 ```
 ### on Fedora (Fedora 23):
 ```
