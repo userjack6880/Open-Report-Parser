@@ -106,7 +106,7 @@ our ($debug, $delete_reports, $maxsize_xml, $compress_xml,
 	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $delete_failed,
 	$imapmovefolder, $imapreadfolder, $imapopt);
 
-# config file, will be searched in running directory, then in call path
+# config file will be searched in running directory, then in call path
 my $conf_file = 'dmarcts-report-parser.conf';
 
 

@@ -60,7 +60,7 @@ $imapreadfolder = 'Inbox';
 # will be moved (overruled by the --delete option!)
 $imapmovefolder = 'Inbox.processed';
 ```
-The script is looking for `dmarcts-report-parser.conf` in the current working directory.
+The script is looking for `dmarcts-report-parser.conf` in the current working directory. If not found it will look by the calling path. If neither is found than it will abort.
 
 ## Usage
 
