@@ -147,20 +147,17 @@ if ($ARGV[0]) {
 if (exists $options{r}) {$reports_replace = 1;}
 if (exists $options{x}) {
 	if ($reports_source == TS_IMAP) {
-		print "The -x OPTION requires a PATH.\n";
-		exit;
+		die "The -x OPTION requires a PATH.\n";
 	} else {
 		$reports_source = TS_XML_FILE;
 	}
 }
 if (exists $options{m}) {
 	if ($reports_source == TS_IMAP) {
-		print "The -m OPTION requires a PATH.\n";
-		exit;
+		die "The -m OPTION requires a PATH.\n";
 	} elsif ($reports_source == TS_IMAP) {
-		print "The -m and -x OPTIONS cannot be used both.\n";
-		exit;
-        } else {
+		die "The -m and -x OPTIONS cannot be used both.\n";
+	} else {
 		$reports_source = TS_MBOX_FILE;
 	}
 }
