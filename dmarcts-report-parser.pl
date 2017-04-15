@@ -27,7 +27,7 @@
 # The subroutines storeXMLInDatabase() and getXMLFromMessage() are based on
 # John R. Levine's rddmarc (http://www.taugh.com/rddmarc/). The following
 # special conditions apply to those subroutines:
-# 
+#
 # Copyright 2012, Taughannock Networks. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -98,6 +98,7 @@ use DBI;
 use Socket;
 use Socket6;
 use PerlIO::gzip;
+use File::Basename ();
 
 # Define all possible configuration options.
 our ($debug, $delete_reports, $maxsize_xml, $compress_xml,
@@ -105,6 +106,8 @@ our ($debug, $delete_reports, $maxsize_xml, $compress_xml,
 	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $delete_failed,
 	$imapmovefolder, $imapreadfolder, $imapopt);
 
+# config file will be searched in running directory, then in call path
+my $conf_file = 'dmarcts-report-parser.conf';
 
 
 ################################################################################
@@ -115,11 +118,16 @@ our ($debug, $delete_reports, $maxsize_xml, $compress_xml,
 # to be in the current working directory.
 
 # defaults
-$maxsize_xml = 50000;
+$maxsize_xml 	= 50000;
+
 # load configuration
-do "dmarcts-report-parser.conf";
-if ( ! -e "dmarcts-report-parser.conf" )
-	{die "Could not read config file 'dmarcts-report-parser.conf' from current working directory."};
+if ( -e $conf_file ) {
+	do $conf_file;
+} elsif( -e  (File::Basename::dirname($0) . "/$conf_file" ) ) {
+	do ( File::Basename::dirname($0) . "/$conf_file" );
+} else {
+	die "Could not read config file '$conf_file' from current working directory or path (" . File::Basename::dirname($0) . ')'
+}
 
 # Get command line options.
 my %options = ();
@@ -139,20 +147,17 @@ if ($ARGV[0]) {
 if (exists $options{r}) {$reports_replace = 1;}
 if (exists $options{x}) {
 	if ($reports_source == TS_IMAP) {
-		print "The -x OPTION requires a PATH.\n";
-		exit;
+		die "The -x OPTION requires a PATH.\n";
 	} else {
 		$reports_source = TS_XML_FILE;
 	}
 }
 if (exists $options{m}) {
 	if ($reports_source == TS_IMAP) {
-		print "The -m OPTION requires a PATH.\n";
-		exit;
+		die "The -m OPTION requires a PATH.\n";
 	} elsif ($reports_source == TS_IMAP) {
-		print "The -m and -x OPTIONS cannot be used both.\n";
-		exit;
-        } else {
+		die "The -m and -x OPTIONS cannot be used both.\n";
+	} else {
 		$reports_source = TS_MBOX_FILE;
 	}
 }
@@ -333,7 +338,7 @@ if ($reports_source == TS_IMAP) {
 				}
 			} else {
 				print "Could not open file <$f>: $!. Skipped.\n";
-				# Could not retrieve filecontent, so it is not 
+				# Could not retrieve filecontent, so it is not
 				# possible to --delete file and send filecontent
 				# as cron message. The user has to look at the
 				# actual file. The skipped message must be send
@@ -386,7 +391,7 @@ if ($reports_source == TS_IMAP) {
 sub getXMLFromMessage {
 	my $message = $_[0];
 	my $messagefile = $_[1];
-	
+
 	my $parser = new MIME::Parser;
 	$parser->output_dir("/tmp");
 	$parser->filer->ignore_filename(1);
@@ -439,7 +444,7 @@ sub getXMLFromMessage {
 				last; # of parts
 			} elsif(lc $part->mime_type eq "application/x-zip-compressed"
 				or $part->mime_type eq "application/zip") {
-			
+
 				$location = $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
 				print "$location\n" if $debug;
 			} elsif(lc $part->mime_type eq "application/octet-stream") {
@@ -458,7 +463,7 @@ sub getXMLFromMessage {
 		## Clean up dangling mime parts in /tmp of messages without ZIP.
 		my $num_parts = $ent->parts;
 		for (my $i=0; $i < $num_parts; $i++) {
-			if($debug == 1) {	
+			if($debug == 1) {
 				print $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
 				print "\n";
 			}
@@ -614,9 +619,9 @@ sub storeXMLInDatabase {
 		 # some reports don't have dkim/spf, "unknown" is default for these
 		my $dkim_align = $r{'row'}->{'policy_evaluated'}->{'dkim'} || "unknown";
 		my $spf_align = $r{'row'}->{'policy_evaluated'}->{'spf'} || "unknown";
-		
+
 		my $identifier_hfrom = $r{'identifiers'}->{'header_from'};
-		
+
 		my ($dkim, $dkimresult, $spf, $spfresult, $reason);
 		my $rp = $r{'auth_results'}->{'dkim'};
 		if(ref $rp eq "HASH") {
