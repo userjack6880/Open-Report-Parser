@@ -467,7 +467,7 @@ sub getXMLFromMessage {
 				print $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
 				print "\n";
 			}
-			$ent->parts($i)->{ME_Bodyhandle}->purge;
+			if($ent->parts($i)->{ME_Bodyhandle}) {$ent->parts($i)->{ME_Bodyhandle}->purge;}
 
 		}
 	}
