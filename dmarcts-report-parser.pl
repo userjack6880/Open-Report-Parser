@@ -464,11 +464,14 @@ sub getXMLFromMessage {
 		my $num_parts = $ent->parts;
 		for (my $i=0; $i < $num_parts; $i++) {
 			if($debug == 1) {
-				print $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
+				if ($ent->parts($i)->{ME_Bodyhandle} && $ent->parts($i)->{ME_Bodyhandle}->{MB_Path}) {
+					print $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
+				} else {
+					print "undef";
+				}
 				print "\n";
 			}
 			if($ent->parts($i)->{ME_Bodyhandle}) {$ent->parts($i)->{ME_Bodyhandle}->purge;}
-
 		}
 	}
 
