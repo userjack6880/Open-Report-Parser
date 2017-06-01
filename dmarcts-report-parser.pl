@@ -197,11 +197,8 @@ if ($reports_source == TS_IMAP) {
 	# unwanted side effects.
 	$imap->Uid(1);
 
-	if ($debug) {
-		# How many msgs are we going to process?
-		print "There are ". $imap->message_count($imapreadfolder).
-			" messages in folder <$imapreadfolder>.\n";
-	}
+	# How many msgs are we going to process?
+	print "Processing ". $imap->message_count($imapreadfolder)." messages in folder <$imapreadfolder>.\n" if $debug;
 
 	# Only select and search $imapreadfolder, if we actually
 	# have something to do.
@@ -259,6 +256,7 @@ if ($reports_source == TS_IMAP) {
 
 } else { # TS_MESSAGE_FILE or TS_XML_FILE or TS_MBOX_FILE
 
+	my $counts = 0;
 	foreach my $a (@ARGV) {
 		# Linux bash supports wildcard expansion BEFORE the script is
 		# called, so here we only see a list of files. Other OS behave
@@ -281,6 +279,7 @@ if ($reports_source == TS_IMAP) {
 							# processXML return a value with delete bit enabled
 							print "Removing message #$num from mbox file <$f> is not yet supported.\n";
 						}
+						$counts++;
 					}
 				} while(defined($filecontent));
 
@@ -295,12 +294,14 @@ if ($reports_source == TS_IMAP) {
 						# processXML return a value with delete bit enabled
 						unlink($f);
 					}
+					$counts++;
 				} elsif ($reports_source == TS_XML_FILE) {
 					# filecontent is xml file
 					if (processXML(TS_XML_FILE, $filecontent, "xml file <$f>") & 2) {
 						# processXML return a value with delete bit enabled
 						unlink($f);
 					}
+					$counts++;
 				} else {
 					print "Unknown reports_source <$reports_source> for file <$f>. Skipped.\n";
 				}
@@ -314,6 +315,7 @@ if ($reports_source == TS_IMAP) {
 			}
 		}
 	}
+	print "Processed $counts messages(s).\n" if $debug;
 }
 
 
