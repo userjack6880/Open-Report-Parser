@@ -355,7 +355,7 @@ sub processXML {
 	# is given. Failed reports are only deleted, if delete_failed is given.
 	if ($delete_reports && ($xml || $delete_failed)) {
 		if ($xml) {
-			print "Removing after report has been processed." if $debug;
+			print "Removing after report has been processed.\n" if $debug;
 			return 3; #xml ok (1), delete file (2)
 		} else {
 			# A mail which does not look like a DMARC report
@@ -583,14 +583,15 @@ sub storeXMLInDatabase {
 	if ($compress_xml) {
 		my $gzipdata;
 		if(!gzip(\$storexml => \$gzipdata)) {
-			print "Cannot add gzip XML for database ($GzipError). Skipped.\n";
+			print "Cannot add gzip XML to database ($GzipError). Skipped.\n";
+			return 0;
 			$storexml = "";
 		} else {
 			$storexml = encode_base64($gzipdata, "");
 		}
 	}
 	if (length($storexml) > $maxsize_xml) {
-		print "Skipping storage of large XML (".length($storexml)." bytes).\n";
+		print "Skipping storage of large XML (".length($storexml)." bytes) as defined in config file.\n";
 		$storexml = "";
 	}
 	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct, $storexml);
