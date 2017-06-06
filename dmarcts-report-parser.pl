@@ -101,10 +101,9 @@ use PerlIO::gzip;
 use File::Basename ();
 
 # Define all possible configuration options.
-our ($debug, $delete_reports, $maxsize_xml, $compress_xml,
+our ($debug, $delete_reports, $delete_failed, $reports_replace, $maxsize_xml, $compress_xml,
 	$dbname, $dbuser, $dbpass, $dbhost,
-	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $delete_failed,
-	$imapmovefolder, $imapreadfolder, $imapopt);
+	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt);
 
 # config file will be searched in running directory, then in call path
 my $conf_file = 'dmarcts-report-parser.conf';
@@ -131,37 +130,51 @@ if ( -e $conf_file ) {
 
 # Get command line options.
 my %options = ();
-GetOptions( \%options, 'd', 'r', 'x', 'm', 'delete' );
-
-# Set default behaviour.
 use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2, TS_MBOX_FILE => 3 };
-our $reports_source = TS_IMAP;
-our $reports_replace = 0;
+GetOptions( \%options, 'd', 'r', 'x', 'm', 'e', 'i', 'delete' );
 
-# Check for further command line arguments (interpreted as PATH)
-if ($ARGV[0]) {
+# Evaluate command line options
+my $source_options = 0;
+our $reports_source = TS_IMAP; #default
+
+if (exists $options{m}) {
+	$source_options++;
+	$reports_source = TS_MBOX_FILE;
+}
+
+if (exists $options{x}) {
+	$source_options++;
+	$reports_source = TS_XML_FILE;
+}
+
+if (exists $options{e}) {
+	$source_options++;
 	$reports_source = TS_MESSAGE_FILE;
 }
 
-# Evaluate command line options
-if (exists $options{r}) {$reports_replace = 1;}
-if (exists $options{x}) {
-	if ($reports_source == TS_IMAP) {
-		die "The -x OPTION requires a PATH.\n";
-	} else {
-		$reports_source = TS_XML_FILE;
-	}
+if (exists $options{i}) {
+	$source_options++;
+	$reports_source = TS_IMAP;
 }
-if (exists $options{m}) {
-	if ($reports_source == TS_IMAP) {
-		die "The -m OPTION requires a PATH.\n";
-	} elsif ($reports_source == TS_XML_FILE) {
-		die "The -m and -x OPTIONS cannot be used both.\n";
-	} else {
-		$reports_source = TS_MBOX_FILE;
-	}
+
+if ($source_options > 1) {
+	die "Only one source option can be used (-i, -x, -m or -e).\n";
 }
+
+if ($ARGV[0]) {
+	if ($source_options == 0) {
+		# Fallback, if no source_option is present, but a path is given default to TS_MESSAGE_FILE)
+		$reports_source = TS_MESSAGE_FILE;
+	}
+	if ($reports_source == TS_IMAP) {
+		die "The IMAP source option (-i) may not be used together with a PATH.\n";
+	}
+} elsif ($source_options == 1 && $reports_source != TS_IMAP) {
+	die "The provided source option requires a PATH.\n";
+}
+
 # Override config options by command line options.
+if (exists $options{r}) {$reports_replace = 1;}
 if (exists $options{d}) {$debug = 1;}
 if (exists $options{delete}) {$delete_reports = 1;}
 
