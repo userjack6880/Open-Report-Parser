@@ -101,10 +101,9 @@ use PerlIO::gzip;
 use File::Basename ();
 
 # Define all possible configuration options.
-our ($debug, $delete_reports, $maxsize_xml, $compress_xml,
+our ($debug, $delete_reports, $delete_failed, $reports_replace, $maxsize_xml, $compress_xml,
 	$dbname, $dbuser, $dbpass, $dbhost,
-	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $delete_failed,
-	$imapmovefolder, $imapreadfolder, $imapopt);
+	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt);
 
 # config file will be searched in running directory, then in call path
 my $conf_file = 'dmarcts-report-parser.conf';
@@ -131,37 +130,51 @@ if ( -e $conf_file ) {
 
 # Get command line options.
 my %options = ();
-GetOptions( \%options, 'd', 'r', 'x', 'm', 'delete' );
-
-# Set default behaviour.
 use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2, TS_MBOX_FILE => 3 };
-our $reports_source = TS_IMAP;
-our $reports_replace = 0;
+GetOptions( \%options, 'd', 'r', 'x', 'm', 'e', 'i', 'delete' );
 
-# Check for further command line arguments (interpreted as PATH)
-if ($ARGV[0]) {
+# Evaluate command line options
+my $source_options = 0;
+our $reports_source = TS_IMAP; #default
+
+if (exists $options{m}) {
+	$source_options++;
+	$reports_source = TS_MBOX_FILE;
+}
+
+if (exists $options{x}) {
+	$source_options++;
+	$reports_source = TS_XML_FILE;
+}
+
+if (exists $options{e}) {
+	$source_options++;
 	$reports_source = TS_MESSAGE_FILE;
 }
 
-# Evaluate command line options
-if (exists $options{r}) {$reports_replace = 1;}
-if (exists $options{x}) {
-	if ($reports_source == TS_IMAP) {
-		die "The -x OPTION requires a PATH.\n";
-	} else {
-		$reports_source = TS_XML_FILE;
-	}
+if (exists $options{i}) {
+	$source_options++;
+	$reports_source = TS_IMAP;
 }
-if (exists $options{m}) {
-	if ($reports_source == TS_IMAP) {
-		die "The -m OPTION requires a PATH.\n";
-	} elsif ($reports_source == TS_IMAP) {
-		die "The -m and -x OPTIONS cannot be used both.\n";
-	} else {
-		$reports_source = TS_MBOX_FILE;
-	}
+
+if ($source_options > 1) {
+	die "Only one source option can be used (-i, -x, -m or -e).\n";
 }
+
+if ($ARGV[0]) {
+	if ($source_options == 0) {
+		# Fallback, if no source_option is present, but a path is given default to TS_MESSAGE_FILE)
+		$reports_source = TS_MESSAGE_FILE;
+	}
+	if ($reports_source == TS_IMAP) {
+		die "The IMAP source option (-i) may not be used together with a PATH.\n";
+	}
+} elsif ($source_options == 1 && $reports_source != TS_IMAP) {
+	die "The provided source option requires a PATH.\n";
+}
+
 # Override config options by command line options.
+if (exists $options{r}) {$reports_replace = 1;}
 if (exists $options{d}) {$debug = 1;}
 if (exists $options{delete}) {$delete_reports = 1;}
 
@@ -197,11 +210,8 @@ if ($reports_source == TS_IMAP) {
 	# unwanted side effects.
 	$imap->Uid(1);
 
-	if ($debug == 1) {
-		# How many msgs are we going to process?
-		print "There are ". $imap->message_count($imapreadfolder).
-			" messages in the $imapreadfolder folder.\n";
-	}
+	# How many msgs are we going to process?
+	print "Processing ". $imap->message_count($imapreadfolder)." messages in folder <$imapreadfolder>.\n" if $debug;
 
 	# Only select and search $imapreadfolder, if we actually
 	# have something to do.
@@ -216,45 +226,17 @@ if ($reports_source == TS_IMAP) {
 
 		# Loop through IMAP messages.
 		foreach my $msg (@msgs) {
-			if ($debug == 1) {
-				print "--------------------------------\n";
-				print "The Current Message UID is: ";
-				print $msg. "\n";
-				print "--------------------------------\n";
-			}
 
-			my $xml = getXMLFromMessage($imap->message_string($msg),"IMAP message with UID #".$msg);
-			# If !$xml, the mail is probably not a DMARC report, so
-			# do not storeXMLInDatabase.
-			if ($xml) {
-				# If storeXMLInDatabase returns false, there was some sort
-				# of database storage failure and we MUST stop the file
-				# procession, because it is not pushed into the database.
-				# The user must investigate this issue.
-				if (storeXMLInDatabase($xml) <= 0) {
-					next;
-				}
-			}
-
-			# Delete processed message files, if the --delete option
-			# is given. Otherwise move msgs if $imapmovefolder is set.
-			if ($delete_reports && ($xml || $delete_failed)) {
-				if ($debug == 1) {
-					print "Deleting processed IMAP message file.\n";
-				}
-				if (!$xml) {
-					# A mail which does not look like a DMARC report
-					# has been processed and should now be deleted.
-					# Print its content so it gets send as cron
-					# message, so the user can still investigate.
-					print $imap->message_string($msg)."\n"
-				}
+			my $processResult = processXML(TS_MESSAGE_FILE, $imap->message_string($msg), "IMAP message with UID #".$msg);
+			if ($processResult & 4) {
+				# processXML returned a value with database error bit enabled, do nothing at all!
+				next;
+			} elsif ($processResult & 2) {
+				# processXML return a value with delete bit enabled.
 				$imap->delete_message($msg)
 				or print "Could not delete IMAP message. [$@]\n";
 			} elsif ($imapmovefolder) {
-				if ($debug == 1) {
-					print "Moving (copy and delete) processed IMAP message file to IMAP folder: $imapmovefolder\n";
-				}
+				print "Moving (copy and delete) processed IMAP message file to IMAP folder: $imapmovefolder\n" if $debug;
 
 				# Try to create $imapmovefolder, if it does not exist.
 				if (!$imap->exists($imapmovefolder)) {
@@ -285,8 +267,9 @@ if ($reports_source == TS_IMAP) {
 	# We're all done with IMAP here.
 	$imap->logout();
 
-} else { # TS_MESSAGE_FILE or TS_XML_FILE
+} else { # TS_MESSAGE_FILE or TS_XML_FILE or TS_MBOX_FILE
 
+	my $counts = 0;
 	foreach my $a (@ARGV) {
 		# Linux bash supports wildcard expansion BEFORE the script is
 		# called, so here we only see a list of files. Other OS behave
@@ -294,89 +277,58 @@ if ($reports_source == TS_IMAP) {
 		# on each argument to manually expand the argument, if possible.
 		my @file_list = glob($a);
 
-		if ($debug == 1) {
-			# How many msgs are we going to process?
-			print "There are ". @file_list. " messages to be processed.\n";
-		}
-
 		foreach my $f (@file_list) {
-			if ($debug == 1) {
-				print "--------------------------------\n";
-				print "The Current Message is: ";
-				print $f. "\n";
-				print "--------------------------------\n";
-			}
-
-			my $xml;
 			my $filecontent;
-			my $err = 0;
+
 			if ($reports_source == TS_MBOX_FILE) {
-				 my $parser = Mail::Mbox::MessageParser->new({"file_name" => $f, "debug" => $debug, "enable_cache" => 0});
-				 my $num = 1;
-				 do {
+				my $parser = Mail::Mbox::MessageParser->new({"file_name" => $f, "debug" => $debug, "enable_cache" => 0});
+				my $num = 0;
+
+				do {
+					$num++;
 					$filecontent = $parser->read_next_email();
-					if ($filecontent) {
-						my $mboxxml = getXMLFromMessage($filecontent,"$f message $num");
-						if($mboxxml && storeXMLInDatabase($mboxxml) <= 0) {
-							$err = 1;
+					if (defined($filecontent)) {
+						if (processXML(TS_MESSAGE_FILE, $$filecontent, "message #$num of mbox file <$f>") & 2) {
+							# processXML return a value with delete bit enabled
+							print "Removing message #$num from mbox file <$f> is not yet supported.\n";
 						}
+						$counts++;
 					}
-					++$num;
-				} while (defined($filecontent));
+				} while(defined($filecontent));
+
 			} elsif (open FILE, $f) {
+
 				$filecontent = join("", <FILE>);
 				close FILE;
+
 				if ($reports_source == TS_MESSAGE_FILE) {
-					# Get XML data from mime message.
-					$xml = getXMLFromMessage($filecontent,$f);
-				} else {
-					# Get XML data from XML file directly.
-					$xml = getXMLFromXMLString($filecontent);
-					if (!$xml) {
-						print "File <$f> does not seem to be a valid XML file. Skipped.\n";
+					# filecontent is a mime message with zip or xml part
+					if (processXML(TS_MESSAGE_FILE, $filecontent, "message file <$f>") & 2) {
+						# processXML return a value with delete bit enabled
+						unlink($f);
 					}
+					$counts++;
+				} elsif ($reports_source == TS_XML_FILE) {
+					# filecontent is xml file
+					if (processXML(TS_XML_FILE, $filecontent, "xml file <$f>") & 2) {
+						# processXML return a value with delete bit enabled
+						unlink($f);
+					}
+					$counts++;
+				} else {
+					print "Unknown reports_source <$reports_source> for file <$f>. Skipped.\n";
 				}
+
 			} else {
 				print "Could not open file <$f>: $!. Skipped.\n";
-				# Could not retrieve filecontent, so it is not
-				# possible to --delete file and send filecontent
-				# as cron message. The user has to look at the
-				# actual file. The skipped message must be send
-				# on each cron.
-				next;
-			}
-
-			# If !$xml, the file/mail is probably not a DMARC report.
-			# So do not storeXMLInDatabase.
-			if ($xml) {
-				# If storeXMLInDatabase returns false, there was some sort
-				# of database storage failure and we MUST stop the file
-				# procession, because it is not pushed into the database.
-				# The user must investigate this issue.
-				if (storeXMLInDatabase($xml) <= 0) {
-					next;
-				}
-			} else {
-				$err = 1;
-			}
-
-			# Delete processed message files, if the --delete option
-			# is given.
-			if ($delete_reports && (!$err || $delete_failed)) {
-				if (!$xml) {
-					# A mail which does not look like a DMARC report
-					# has been processed and should now be deleted.
-					# Print its content so it gets send as cron
-					# message, so the user can still investigate.
-					print $filecontent."\n"
-				}
-				if($debug) {
-					print "Remove file <$f>.\n";
-				}
-				unlink($f);
+				# Could not retrieve filecontent, the skipped message
+				# will be processed every time the script is run even if
+				# delete_reports and delete_failed is given. The user
+				# has to look at the actual file.
 			}
 		}
 	}
+	print "Processed $counts messages(s).\n" if $debug;
 }
 
 
@@ -385,12 +337,66 @@ if ($reports_source == TS_IMAP) {
 ### subroutines ################################################################
 ################################################################################
 
+sub processXML {
+	my $type = $_[0];
+	my $filecontent = $_[1];
+	my $f = $_[2];
+
+	if ($debug) {
+		print "\n";
+		print "----------------------------------------------------------------\n";
+		print "Processing $f \n";
+		print "----------------------------------------------------------------\n";
+	}
+
+	my $xml; #TS_XML_FILE or TS_MESSAGE_FILE
+	if ($type == TS_MESSAGE_FILE) {$xml = getXMLFromMessage($filecontent);}
+	else {$xml = getXMLFromXMLString($filecontent);}
+
+	# If !$xml, the file/mail is probably not a DMARC report.
+	# So do not storeXMLInDatabase.
+	if ($xml && storeXMLInDatabase($xml) <= 0) {
+		# If storeXMLInDatabase returns false, there was some sort
+		# of database storage failure and we MUST NOT delete the
+		# file, because it has not been pushed into the database.
+		# The user must investigate this issue.
+		print "Skipping $f due to database errors.\n";
+		return 5; #xml ok(1), but database error(4), thus no delete (!2)
+	}
+
+	# Delete processed message, if the --delete option
+	# is given. Failed reports are only deleted, if delete_failed is given.
+	if ($delete_reports && ($xml || $delete_failed)) {
+		if ($xml) {
+			print "Removing after report has been processed.\n" if $debug;
+			return 3; #xml ok (1), delete file (2)
+		} else {
+			# A mail which does not look like a DMARC report
+			# has been processed and should now be deleted.
+			# Print its content so it gets send as cron
+			# message, so the user can still investigate.
+			print "The $f does not seem to contain a valid DMARC report. Skipped and Removed. Content:\n";
+			print $filecontent."\n";
+			return 2; #xml not ok (!1), delete file (2)
+		}
+	}
+
+	if ($xml) {
+		return 1;
+	} else {
+		print "The $f does not seem to contain a valid DMARC report. Skipped.\n";
+		return 0;
+	}
+}
+
+
+################################################################################
+
 # Walk through a mime message and return a reference to the XML data containing
 # the fields of the first ZIPed XML file embedded into the message. The XML
 # itself is not checked to be a valid DMARC report.
 sub getXMLFromMessage {
 	my $message = $_[0];
-	my $messagefile = $_[1];
 
 	my $parser = new MIME::Parser;
 	$parser->output_dir("/tmp");
@@ -401,7 +407,7 @@ sub getXMLFromMessage {
 	my $mtype = $ent->mime_type;
 	my $subj = decode_mimewords($ent->get('subject'));
 
-	if ($debug == 1) {
+	if ($debug) {
 		print "Subject: $subj"; # Subject always contains a \n.
 		print "MimeType: $mtype\n";
 	}
@@ -410,14 +416,14 @@ sub getXMLFromMessage {
 	my $isgzip = 0;
 
 	if(lc $mtype eq "application/zip") {
-		if ($debug == 1) {
+		if ($debug) {
 			print "This is a ZIP file \n";
 		}
 
 		$location = $body->path;
 
 	} elsif (lc $mtype eq "application/gzip") {
-		if ($debug == 1) {
+		if ($debug) {
 			print "This is a GZIP file \n";
 		}
 
@@ -427,7 +433,7 @@ sub getXMLFromMessage {
 	} elsif (lc $mtype eq "multipart/mixed") {
 		# At the moment, nease.net messages are multi-part, so we need
 		# to breakdown the attachments and find the zip.
-		if ($debug == 1) {
+		if ($debug) {
 			print "This is a multipart attachment \n";
 		}
 		#print Dumper($ent->parts);
@@ -453,7 +459,7 @@ sub getXMLFromMessage {
 				print "$location\n" if $debug;
 			} else {
 				# Skip the attachment otherwise.
-				if($debug == 1) {
+				if ($debug) {
 					print "Skipped an unknown attachment \n";
 				}
 				next; # of parts
@@ -463,7 +469,7 @@ sub getXMLFromMessage {
 		## Clean up dangling mime parts in /tmp of messages without ZIP.
 		my $num_parts = $ent->parts;
 		for (my $i=0; $i < $num_parts; $i++) {
-			if($debug == 1) {
+			if ($debug) {
 				if ($ent->parts($i)->{ME_Bodyhandle} && $ent->parts($i)->{ME_Bodyhandle}->{MB_Path}) {
 					print $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
 				} else {
@@ -479,7 +485,7 @@ sub getXMLFromMessage {
 	# If a ZIP has been found, extract XML and parse it.
 	my $xml;
 	if(defined($location)) {
-		if ($debug == 1) {
+		if ($debug) {
 			print "body is in " . $location . "\n";
 		}
 
@@ -505,14 +511,14 @@ sub getXMLFromMessage {
 		if ($unzip eq "") {
 			$xml = getXMLFromXMLString(join("", <XML>));
 			if (!$xml) {
-				print "The XML found in ZIP file (temp. location: <$location>) extracted from <$messagefile> does not seem to be valid XML. Skipped.\n";
+				print "The XML found in ZIP file (temp. location: <$location>) does not seem to be valid XML! ";
 			}
 			close XML;
 		} else {
-			print "Failed to $unzip ZIP file (temp. location: <$location>) extracted from <$messagefile>. Skipped.\n";
+			print "Failed to $unzip ZIP file (temp. location: <$location>)! ";
 		}
 	} else {
-		print "Could not find an embedded ZIP in <$messagefile>. Skipped.\n";
+		print "Could not find an embedded ZIP! ";
 	}
 
 	if($body) {$body->purge;}
@@ -590,14 +596,15 @@ sub storeXMLInDatabase {
 	if ($compress_xml) {
 		my $gzipdata;
 		if(!gzip(\$storexml => \$gzipdata)) {
-			print "Cannot add gzip XML for database ($GzipError). Skipped.\n";
+			print "Cannot add gzip XML to database ($GzipError). Skipped.\n";
+			return 0;
 			$storexml = "";
 		} else {
 			$storexml = encode_base64($gzipdata, "");
 		}
 	}
 	if (length($storexml) > $maxsize_xml) {
-		print "Skipping storage of large XML (".length($storexml)." bytes).\n";
+		print "Skipping storage of large XML (".length($storexml)." bytes) as defined in config file.\n";
 		$storexml = "";
 	}
 	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct, $storexml);
@@ -607,7 +614,7 @@ sub storeXMLInDatabase {
 	}
 
 	my $serial = $dbh->{'mysql_insertid'} ||  $dbh->{'insertid'};
-	if($debug == 1){
+	if ($debug){
 		print " serial $serial ";
 	}
 	my $record = $xml->{'record'};
@@ -657,7 +664,7 @@ sub storeXMLInDatabase {
 
 		# What type of IP address?
 		my ($nip, $iptype, $ipval);
-		if($debug == 1) {
+		if ($debug) {
 			print "ip=$ip\n";
 		}
 		if($nip = inet_pton(AF_INET, $ip)) {
@@ -682,12 +689,12 @@ sub storeXMLInDatabase {
 
 	my $res = 1;
 	if(ref $record eq "HASH") {
-		if($debug == 1){
+		if ($debug){
 			print "single record\n";
 		}
 		$res = -1 if !dorow($serial,$record);
 	} elsif(ref $record eq "ARRAY") {
-		if($debug == 1){
+		if ($debug){
 			print "multi record\n";
 		}
 		foreach my $row (@$record) {

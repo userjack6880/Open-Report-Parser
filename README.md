@@ -59,6 +59,17 @@ $imapreadfolder = 'Inbox';
 # If $imapmovefolder is set, processed IMAP messages
 # will be moved (overruled by the --delete option!)
 $imapmovefolder = 'Inbox.processed';
+
+# maximum size of XML files to store in database, long files can cause transaction aborts
+$maxsize_xml = 50000;
+# store XML as base64 encopded gzip in database (save space, harder usable)
+$compress_xml = 0;
+
+# if there was an error during file processing (message does not contain XML or ZIP parts, 
+# or a database error) the parser reports an error and does not delete the file, even if 
+# delete_reports is set (or --delete is given). Deletion can be enforced by delete_failed, 
+# however not for database errors.
+$delete_failed = 0;
 ```
 The script is looking for `dmarcts-report-parser.conf` in the current working directory. If not found it will look by the calling path. If neither is found than it will abort.
 
