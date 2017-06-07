@@ -52,33 +52,6 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ################################################################################
 
-################################################################################
-# Usage:
-#    ./dmarcts-report-parser.pl [OPTIONS] [PATH]
-#
-# If PATH is not provided, reports are read from an IMAP server, otherwise they
-# are read from PATH from local filesystem. PATH can be a filename of a single
-# mime message file or multiple mime message files - wildcard expression are
-# allowed.
-#
-# To run, this script needs custom configurations: a database server and
-# credentials and (if used) an IMAP server and credentials. These values can be
-# set inside the script or by providing them via <dmarcts-report-parser.conf> in
-# the current working directory.
-#
-# The following options are always allowed:
-#        -d : Print debug info.
-#        -r : Replace existing reports rather than failing.
-#  --delete : Delete processed message files (the XML is stored in the
-#             database for later reference).
-#
-# If a PATH is given, the following option is also allowed:
-#        -x : Files specified by PATH are XML report files, rather than
-#             mime messages containing the XML report files.
-################################################################################
-
-
-
 # Always be safe
 use strict;
 use warnings;
@@ -100,31 +73,64 @@ use Socket6;
 use PerlIO::gzip;
 use File::Basename ();
 
-# Define all possible configuration options.
-our ($debug, $delete_reports, $delete_failed, $reports_replace, $maxsize_xml, $compress_xml,
-	$dbname, $dbuser, $dbpass, $dbhost,
-	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt);
 
-# config file will be searched in running directory, then in call path
-my $conf_file = 'dmarcts-report-parser.conf';
+
+
+
+################################################################################
+### usage ######################################################################
+################################################################################
+
+sub show_usage {
+	print "\n";
+	print " Usage: \n";
+	print "    ./dmarcts-report-parser.pl [OPTIONS] [PATH] \n";
+	print "\n";
+	print " This script needs a configuration file called <dmarcts-report-parser.conf> in \n";
+	print " the current working directory, which defines a database server with credentials \n";
+	print " and (if used) an IMAP server with credentials. \n";
+	print "\n";
+	print " Additionaly, one of the following source options must be provided: \n";
+	print "        -i : Read reports from messages on IMAP server as defined in the \n";
+	print "             config file. \n";
+	print "        -m : Read reports from mbox file(s) provided in PATH. \n";
+	print "        -e : Read reports from MIME email file(s) provided in PATH. \n";
+	print "        -x : Read reports from xml file(s) provided in PATH. \n";
+	print "\n";
+	print " The following optional options are allowed: \n";
+	print "        -d : Print debug info. \n";
+	print "        -r : Replace existing reports rather than skipping them. \n";
+	print "  --delete : Delete processed message files (the XML is stored in the \n";
+	print "             database for later reference). \n";
+	print "\n";
+}
+
+
+
 
 
 ################################################################################
 ### main #######################################################################
 ################################################################################
 
-# Load script configuration options from local config file. The file is expected
-# to be in the current working directory.
+# Define all possible configuration options.
+our ($debug, $delete_reports, $delete_failed, $reports_replace, $maxsize_xml, $compress_xml,
+	$dbname, $dbuser, $dbpass, $dbhost,
+	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt);
 
 # defaults
 $maxsize_xml 	= 50000;
 
-# load configuration
+# Load script configuration options from local config file. The file is expected
+# to be in the current working directory.
+my $conf_file = 'dmarcts-report-parser.conf';
+
 if ( -e $conf_file ) {
 	do $conf_file;
 } elsif( -e  (File::Basename::dirname($0) . "/$conf_file" ) ) {
 	do ( File::Basename::dirname($0) . "/$conf_file" );
 } else {
+	show_usage();
 	die "Could not read config file '$conf_file' from current working directory or path (" . File::Basename::dirname($0) . ')'
 }
 
@@ -135,7 +141,7 @@ GetOptions( \%options, 'd', 'r', 'x', 'm', 'e', 'i', 'delete' );
 
 # Evaluate command line options
 my $source_options = 0;
-our $reports_source = TS_IMAP; #default
+our $reports_source;
 
 if (exists $options{m}) {
 	$source_options++;
@@ -158,19 +164,23 @@ if (exists $options{i}) {
 }
 
 if ($source_options > 1) {
+	show_usage();
 	die "Only one source option can be used (-i, -x, -m or -e).\n";
+} elsif ($source_options == 0) {
+	show_usage();
+	die "Please provide a source option (-i, -x, -m or -e).\n";
 }
 
 if ($ARGV[0]) {
-	if ($source_options == 0) {
-		# Fallback, if no source_option is present, but a path is given default to TS_MESSAGE_FILE)
-		$reports_source = TS_MESSAGE_FILE;
-	}
 	if ($reports_source == TS_IMAP) {
+		show_usage();
 		die "The IMAP source option (-i) may not be used together with a PATH.\n";
 	}
-} elsif ($source_options == 1 && $reports_source != TS_IMAP) {
-	die "The provided source option requires a PATH.\n";
+} else {
+	if ($reports_source != TS_IMAP && $source_options == 1) {
+		show_usage();
+		die "The provided source option requires a PATH.\n";
+	}
 }
 
 # Override config options by command line options.
