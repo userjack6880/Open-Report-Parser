@@ -78,9 +78,17 @@ The script is looking for `dmarcts-report-parser.conf` in the current working di
 ```
 ./dmarcts-report-parser.pl [OPTIONS] [PATH]
 ```
-If `PATH` is not provided, reports are read from an IMAP server, otherwise they are read from PATH from local filesystem. PATH can be a filename of a single mime message file or multiple mime message files - wildcard expression are allowed.
+PATH can be the filename of a single file or a list of files - wildcard expression are allowed.
 
-**Remember**: To run, this script needs custom configurations: a database server and credentials and (if used) an IMAP server and credentials. These values must be set in the config file as described above.
+**Remember**: This script needs a configurations file called <dmarcts-report-parser.conf> in the current working directory, which defines a database server with credentials and (if used) an IMAP server with credentials.
+
+One of the following source options must be provided:
+```
+#        -i : Read reports from messages on IMAP server as defined in the config file.
+#        -m : Read reports from mbox file(s) provided in PATH.
+#        -e : Read reports from MIME email file(s) provided in PATH.
+#        -x : Read reports from xml file(s) provided in PATH.
+```
 
 The following options are always allowed:
 ```
@@ -90,12 +98,4 @@ The following options are always allowed:
 #             database for later reference).
 ```
 
-If a `PATH` is given, the following option is also allowed:
-```
-         -x : Files specified by PATH are XML report files, rather than
-              mime messages containing the XML report files.
-         -m : Files specified by PATH are mbox files with multiple MIME messages
-```
-
 More info can currently be found at : [TechSneeze.com](http://www.techsneeze.com/how-parse-dmarc-reports-imap/)
-
