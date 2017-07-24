@@ -127,7 +127,7 @@ my $conf_file = 'dmarcts-report-parser.conf';
 
 # locate conf file or die
 if ( -e $conf_file ) {
-#	$conf_file = "./$conf_file";
+  #$conf_file = "./$conf_file";
 } elsif( -e  (File::Basename::dirname($0) . "/$conf_file" ) ) {
 	$conf_file = ( File::Basename::dirname($0) . "/$conf_file" );
 } else {
@@ -136,7 +136,10 @@ if ( -e $conf_file ) {
 }
 
 # load conf file with error handling
-my $conf_return = do "./$conf_file";
+if ( substr($conf_file, 0, 1) ne '/'  and substr($conf_file, 0, 1) ne '.') {
+  $conf_file = "./$conf_file";
+}
+my $conf_return = do $conf_file;
 die "couldn't parse $conf_file: $@" if $@;
 die "couldn't do $conf_file: $!"    unless defined $conf_return;
   
