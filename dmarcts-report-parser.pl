@@ -72,7 +72,7 @@ use Socket;
 use Socket6;
 use PerlIO::gzip;
 use File::Basename ();
-
+use IO::Socket::SSL;
 
 
 
@@ -142,6 +142,11 @@ if ( substr($conf_file, 0, 1) ne '/'  and substr($conf_file, 0, 1) ne '.') {
 my $conf_return = do $conf_file;
 die "couldn't parse $conf_file: $@" if $@;
 die "couldn't do $conf_file: $!"    unless defined $conf_return;
+
+# check config
+if (!defined $imapreadfolder ) {
+  die "\$imapreadfolder not defined. Check config file";
+}
   
 # Get command line options.
 my %options = ();
@@ -210,7 +215,7 @@ if ($reports_source == TS_IMAP) {
 
 	# Disable verify mode for TLS support.
 	if ($imaptls == 1) {
-		$imapopt = [ SSL_verify_mode => 0 ];
+		$imapopt = [ SSL_verify_mode => SSL_VERIFY_NONE ];
 	}
 
 	# Setup connection to IMAP server.
