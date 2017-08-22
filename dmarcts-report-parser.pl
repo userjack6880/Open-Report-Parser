@@ -218,12 +218,16 @@ if ($reports_source == TS_IMAP) {
 		$imapopt = [ SSL_verify_mode => SSL_VERIFY_NONE ];
 	}
 
+  
+
 	# Setup connection to IMAP server.
 	my $imap = Mail::IMAPClient->new( Server => $imapserver,
 		Ssl => $imapssl,
 		Starttls => $imapopt,
 		User => $imapuser,
-		Password => $imappass)
+		Password => $imappass,
+		Debug=> $debug		
+  )
 	# module uses eval, so we use $@ instead of $!
 	or die "IMAP Failure: $@";
 
