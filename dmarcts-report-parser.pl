@@ -226,7 +226,7 @@ if ($reports_source == TS_IMAP) {
 		Starttls => $imapopt,
 		User => $imapuser,
 		Password => $imappass,
-		Debug=> $debug		
+		Debug=> $debug
   )
 	# module uses eval, so we use $@ instead of $!
 	or die "IMAP Failure: $@";
