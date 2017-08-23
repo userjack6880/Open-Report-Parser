@@ -24,7 +24,7 @@ sudo dnf install perl-Mail-IMAPClient perl-MIME-tools perl-XML-Simple perl-DBI \
 ```
 yum install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 yum install perl-Mail-IMAPClient perl-MIME-tools perl-XML-Simple perl-DBI \
- perl-Socket6 perl-PerlIO-gzip perl-DBD-MySQL unzip
+ perl-Socket6 perl-PerlIO-gzip perl-DBD-MySQL unzip perl-Mail-Mbox-MessageParser
  ```
 
 To get your copy of the dmarcts-report-parser, you can either clone the repository:
