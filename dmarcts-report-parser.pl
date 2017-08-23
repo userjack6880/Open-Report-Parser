@@ -73,7 +73,7 @@ use Socket6;
 use PerlIO::gzip;
 use File::Basename ();
 use IO::Socket::SSL;
-
+#use IO::Socket::SSL 'debug3';
 
 
 
@@ -116,7 +116,7 @@ sub show_usage {
 # Define all possible configuration options.
 our ($debug, $delete_reports, $delete_failed, $reports_replace, $maxsize_xml, $compress_xml,
 	$dbname, $dbuser, $dbpass, $dbhost,
-	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt);
+	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt, $tlsverify);
 
 # defaults
 $maxsize_xml 	= 50000;
@@ -215,7 +215,13 @@ if ($reports_source == TS_IMAP) {
 
 	# Disable verify mode for TLS support.
 	if ($imaptls == 1) {
-		$imapopt = [ SSL_verify_mode => SSL_VERIFY_NONE ];
+    if ( $tlsverify == 0 ) {
+      print "use tls without verify servercert.\n" if $debug;
+      $imapopt = [ SSL_verify_mode => SSL_VERIFY_NONE ];
+    } else {
+      print "use tls with verify servercert.\n" if $debug;
+      $imapopt = [ SSL_verify_mode => SSL_VERIFY_PEER ];
+    }
 	}
 
   

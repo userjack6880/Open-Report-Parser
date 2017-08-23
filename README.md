@@ -54,6 +54,7 @@ $imapuser = 'dmarcreports';
 $imappass = 'xxx';
 $imapssl = '0'; # If set to 1, remember to change server port to 993.
 $imaptls = '1'; # Enabled as the default and best-practice.
+$tlsverify = '1'; # Enable verify server cert as the default and best-practice.
 $imapreadfolder = 'Inbox';
 
 # If $imapmovefolder is set, processed IMAP messages
