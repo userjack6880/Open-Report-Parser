@@ -72,8 +72,8 @@ use Socket;
 use Socket6;
 use PerlIO::gzip;
 use File::Basename ();
-
-
+use IO::Socket::SSL;
+#use IO::Socket::SSL 'debug3';
 
 
 
@@ -116,7 +116,7 @@ sub show_usage {
 # Define all possible configuration options.
 our ($debug, $delete_reports, $delete_failed, $reports_replace, $maxsize_xml, $compress_xml,
 	$dbname, $dbuser, $dbpass, $dbhost,
-	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt);
+	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt, $tlsverify);
 
 # defaults
 $maxsize_xml 	= 50000;
@@ -142,6 +142,11 @@ if ( substr($conf_file, 0, 1) ne '/'  and substr($conf_file, 0, 1) ne '.') {
 my $conf_return = do $conf_file;
 die "couldn't parse $conf_file: $@" if $@;
 die "couldn't do $conf_file: $!"    unless defined $conf_return;
+
+# check config
+if (!defined $imapreadfolder ) {
+  die "\$imapreadfolder not defined. Check config file";
+}
   
 # Get command line options.
 my %options = ();
@@ -210,15 +215,25 @@ if ($reports_source == TS_IMAP) {
 
 	# Disable verify mode for TLS support.
 	if ($imaptls == 1) {
-		$imapopt = [ SSL_verify_mode => 0 ];
+    if ( $tlsverify == 0 ) {
+      print "use tls without verify servercert.\n" if $debug;
+      $imapopt = [ SSL_verify_mode => SSL_VERIFY_NONE ];
+    } else {
+      print "use tls with verify servercert.\n" if $debug;
+      $imapopt = [ SSL_verify_mode => SSL_VERIFY_PEER ];
+    }
 	}
+
+  
 
 	# Setup connection to IMAP server.
 	my $imap = Mail::IMAPClient->new( Server => $imapserver,
 		Ssl => $imapssl,
 		Starttls => $imapopt,
 		User => $imapuser,
-		Password => $imappass)
+		Password => $imappass,
+		Debug=> $debug
+  )
 	# module uses eval, so we use $@ instead of $!
 	or die "IMAP Failure: $@";
 
