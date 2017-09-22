@@ -116,7 +116,7 @@ sub show_usage {
 # Define all possible configuration options.
 our ($debug, $delete_reports, $delete_failed, $reports_replace, $maxsize_xml, $compress_xml,
 	$dbname, $dbuser, $dbpass, $dbhost,
-	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt, $tlsverify);
+	$imapserver, $imapuser, $imappass, $imapignoreerror, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt, $tlsverify);
 
 # defaults
 $maxsize_xml 	= 50000;
@@ -146,6 +146,9 @@ die "couldn't do $conf_file: $!"    unless defined $conf_return;
 # check config
 if (!defined $imapreadfolder ) {
   die "\$imapreadfolder not defined. Check config file";
+}
+if (!defined $imapignoreerror ) {
+  $imapignoreerror = 0;   # maintain compatibility to old version
 }
   
 # Get command line options.
@@ -225,6 +228,7 @@ if ($reports_source == TS_IMAP) {
 	}
 
   
+	print "connection to $imapserver with Ssl => $imapssl, User => $imapuser, Ignoresizeerrors => $imapignoreerror\n" if $debug;
 
 	# Setup connection to IMAP server.
 	my $imap = Mail::IMAPClient->new( Server => $imapserver,
@@ -232,6 +236,7 @@ if ($reports_source == TS_IMAP) {
 		Starttls => $imapopt,
 		User => $imapuser,
 		Password => $imappass,
+		Ignoresizeerrors => $imapignoreerror,
 		Debug=> $debug
   )
 	# module uses eval, so we use $@ instead of $!
