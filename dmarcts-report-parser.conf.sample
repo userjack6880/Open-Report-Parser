@@ -13,13 +13,17 @@ $dbuser = 'dmarc';
 $dbpass = 'xxx';
 $dbhost = ''; # Set the hostname if we can't connect to the local socket.
 
-$imapserver = 'mail.example.com:143';
-$imapuser = 'dmarcreports';
-$imappass = 'xxx';
-$imapssl = '0'; # If set to 1, remember to change server port to 993.
-$imaptls = '1'; # Enabled as the default and best-practice.
-$tlsverify = '1'; # Enable verify server cert as the default and best-practice.
-$imapreadfolder = 'Inbox';
+$imapserver       = 'mail.example.com:143';
+$imapuser         = 'dmarcreports';
+$imappass         = 'xxx';
+$imapssl          = '0';        # If set to 1, remember to change server port to 993.
+$imaptls          = '1';        # Enabled as the default and best-practice.
+$tlsverify        = '1';        # Enable verify server cert as the default and best-practice.
+$imapignoreerror  = 0;          # set it to 1 if you see an "ERROR: message_string() 
+                                # expected 119613 bytes but received 81873 you may 
+                                # need the IgnoreSizeErrors option" because of malfunction
+                                # imap server as MS Exchange 2007, ...
+$imapreadfolder   = 'Inbox';
 
 # If $imapmovefolder is set, processed IMAP messages will be moved (overruled by
 # the --delete option!)
