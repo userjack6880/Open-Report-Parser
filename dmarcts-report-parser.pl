@@ -779,7 +779,7 @@ sub checkDatabase {
 				"raw_xml"		, "mediumtext",
 				],
 			additional_definitions 		=> "PRIMARY KEY (serial), UNIQUE KEY domain (domain,reportid)",
-			table_options			=> "",
+			table_options			=> "ROW_FORMAT=COMPRESSED",
 			},
 		"rptrecord" =>{
 			column_definitions 		=> [
