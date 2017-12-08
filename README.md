@@ -2,8 +2,15 @@
 A Perl based tool to parse DMARC reports, based on John Levine's [rddmarc](http://www.taugh.com/rddmarc/), but extended by the following features:
 * Allow to read messages from an IMAP server and not only from the local filesystem.
 * Store much more XML values into the database (for example the missing SPF and DKIM results from the policy_evaluated section) and also the entire XML for later reference.
-* Needed database tables and columns are created automatically, user only needs to provide a database. The database schema is compatible to the one used by rddmarc, but extends it by additional fields. Users can switch from rddmarc to dmarcts-report-parser without having to do any changes to the database by themself.
+* Needed database tables and columns are created automatically, user only needs to provide a database. The database schema is compatible to the one used by rddmarc, but extends it by additional fields. Users can switch from rddmarc to dmarcts-report-parser without having to do any changes to the database by themselves.
+* Due to limitations in stock configurations of MySQL/MariaSQL on some distros, it may be necessary
+to add the following to your configuration (i.e. in /etc/mysql/mariadb.conf.d/50-server.cnf):
 
+```
+innodb_large_prefix	= on
+innodb_file_format	= barracuda
+innodb_file_per_table	= true
+```
 
 ## Installation and Configuration
 
@@ -13,7 +20,7 @@ To install dependencies...
 ```
 apt-get install libmail-imapclient-perl libmime-tools-perl libxml-simple-perl \
 libclass-dbi-mysql-perl libio-socket-inet6-perl libio-socket-ip-perl libperlio-gzip-perl \
-libmail-mbox-messageparser-perl
+libmail-mbox-messageparser-perl unzip
 ```
 ### on Fedora (Fedora 23):
 ```
@@ -77,6 +84,10 @@ $compress_xml = 0;
 $delete_failed = 0;
 ```
 The script is looking for `dmarcts-report-parser.conf` in the current working directory. If not found it will look by the calling path. If neither is found than it will abort.
+
+Note: Be sure to use the proper hierarchy separator for your server in all folder specs, and
+if your IMAP server flattens the hierarchy (i.e. Cyrus IMAP with "altnamespace: yes") then
+leave "Inbox" off of the beginning of such specs.
 
 ## Usage
 
