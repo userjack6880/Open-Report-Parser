@@ -786,6 +786,7 @@ sub checkDatabase {
 			},
 		"rptrecord" =>{
 			column_definitions 		=> [
+				"id"			, "int(10) unsigned NOT NULL AUTO_INCREMENT",
 				"serial"		, "int(10) unsigned NOT NULL",
 				"ip"			, "int(10) unsigned",
 				"ip6"			, "binary(16)",
@@ -800,8 +801,8 @@ sub checkDatabase {
 				"dkim_align"		, "enum('fail','pass','unknown') NOT NULL",
 				"identifier_hfrom"	, "varchar(255)",
 				],
-			additional_definitions 		=> "KEY serial (serial,ip), KEY serial6 (serial,ip6)",
-			table_options			=> "ENGINE=MyISAM",
+			additional_definitions 		=> "PRIMARY KEY (id), KEY serial (serial,ip), KEY serial6 (serial,ip6)",
+			table_options			=> "",
 			},
 	);
 
