@@ -436,6 +436,9 @@ sub processXML {
 # itself is not checked to be a valid DMARC report.
 sub getXMLFromMessage {
 	my $message = $_[0];
+	
+	# fixup type in trustwave SEG mails
+        $message =~ s/ContentType:/Content-Type:/;
 
 	my $parser = new MIME::Parser;
 	$parser->output_dir("/tmp");
@@ -499,7 +502,7 @@ sub getXMLFromMessage {
 			} else {
 				# Skip the attachment otherwise.
 				if ($debug) {
-					print "Skipped an unknown attachment \n";
+					print "Skipped an unknown attachment (".lc $part->mime_type.")\n";
 				}
 				next; # of parts
 			}
