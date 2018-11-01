@@ -786,7 +786,7 @@ sub checkDatabase {
 			},
 		"rptrecord" =>{
 			column_definitions 		=> [
-				"id"			, "int(10) unsigned NOT NULL AUTO_INCREMENT",
+				"id"			, "int(10) unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY",
 				"serial"		, "int(10) unsigned NOT NULL",
 				"ip"			, "int(10) unsigned",
 				"ip6"			, "binary(16)",
