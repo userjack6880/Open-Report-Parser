@@ -464,7 +464,7 @@ sub getXMLFromMessage {
 
 		$location = $body->path;
 
-	} elsif (lc $mtype eq "application/gzip") {
+	} elsif (lc $mtype eq "application/gzip" or lc $mtype eq "application/x-gzip") {
 		if ($debug) {
 			print "This is a GZIP file \n";
 		}
@@ -485,7 +485,7 @@ sub getXMLFromMessage {
 			my $part = $ent->parts($i);
 
 			# Find a zip file to work on...
-			if(lc $part->mime_type eq "application/gzip") {
+			if(lc $part->mime_type eq "application/gzip" or lc $part->mime_type eq "application/x-gzip") {
 				$location = $ent->parts($i)->{ME_Bodyhandle}->{MB_Path};
 				$isgzip = 1;
 				print "$location\n" if $debug;
