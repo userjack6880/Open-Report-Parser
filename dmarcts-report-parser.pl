@@ -801,7 +801,7 @@ sub checkDatabase {
 				"dkim_align"		, "enum('fail','pass','unknown') NOT NULL",
 				"identifier_hfrom"	, "varchar(255)",
 				],
-			additional_definitions 		=> "PRIMARY KEY (id), KEY serial (serial,ip), KEY serial6 (serial,ip6)",
+			additional_definitions 		=> "KEY serial (serial,ip), KEY serial6 (serial,ip6)",
 			table_options			=> "",
 			},
 	);
