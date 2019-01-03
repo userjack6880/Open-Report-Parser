@@ -115,7 +115,7 @@ sub show_usage {
 
 # Define all possible configuration options.
 our ($debug, $delete_reports, $delete_failed, $reports_replace, $maxsize_xml, $compress_xml,
-	$dbname, $dbuser, $dbpass, $dbhost,
+	$dbname, $dbuser, $dbpass, $dbhost, $dbport,
 	$imapserver, $imapuser, $imappass, $imapignoreerror, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt, $tlsverify);
 
 # defaults
@@ -207,7 +207,7 @@ if (exists $options{delete}) {$delete_reports = 1;}
 
 
 # Setup connection to database server.
-my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost",
+my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost;port=$dbport",
 	$dbuser, $dbpass)
 or die "Cannot connect to database\n";
 checkDatabase($dbh);
