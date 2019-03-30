@@ -12,6 +12,7 @@ $dbname = 'dmarc';
 $dbuser = 'dmarc';
 $dbpass = 'xxx';
 $dbhost = ''; # Set the hostname if we can't connect to the local socket.
+$dbport = '3306';
 
 $imapserver       = 'mail.example.com:143';
 $imapuser         = 'dmarcreports';
