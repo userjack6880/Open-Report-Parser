@@ -102,6 +102,7 @@ sub show_usage {
 	print "        -r : Replace existing reports rather than skipping them. \n";
 	print "  --delete : Delete processed message files (the XML is stored in the \n";
 	print "             database for later reference). \n";
+	print "    --info : Print out number of XML files or emails processed. \n";
 	print "\n";
 }
 
@@ -116,7 +117,7 @@ sub show_usage {
 # Define all possible configuration options.
 our ($debug, $delete_reports, $delete_failed, $reports_replace, $maxsize_xml, $compress_xml,
 	$dbname, $dbuser, $dbpass, $dbhost, $dbport,
-	$imapserver, $imapport, $imapuser, $imappass, $imapignoreerror, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt, $tlsverify);
+	$imapserver, $imapport, $imapuser, $imappass, $imapignoreerror, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt, $tlsverify, $processInfo);
 
 # defaults
 $maxsize_xml 	= 50000;
@@ -154,7 +155,7 @@ if (!defined $imapignoreerror ) {
 # Get command line options.
 my %options = ();
 use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2, TS_MBOX_FILE => 3 };
-GetOptions( \%options, 'd', 'r', 'x', 'm', 'e', 'i', 'delete' );
+GetOptions( \%options, 'd', 'r', 'x', 'm', 'e', 'i', 'delete', 'info' );
 
 # Evaluate command line options
 my $source_options = 0;
@@ -204,7 +205,7 @@ if ($ARGV[0]) {
 if (exists $options{r}) {$reports_replace = 1;}
 if (exists $options{d}) {$debug = 1;}
 if (exists $options{delete}) {$delete_reports = 1;}
-
+if (exists $options{info}) {$processInfo = 1;}
 
 # Setup connection to database server.
 my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost;port=$dbport",
@@ -216,6 +217,7 @@ checkDatabase($dbh);
 # Process messages based on $reports_source.
 if ($reports_source == TS_IMAP) {
 	my $socketargs = '';
+	my $processedReport = 0;
 
 	# Disable verify mode for TLS support.
 	if ($imaptls == 1) {
@@ -279,6 +281,7 @@ if ($reports_source == TS_IMAP) {
 		foreach my $msg (@msgs) {
 
 			my $processResult = processXML(TS_MESSAGE_FILE, $imap->message_string($msg), "IMAP message with UID #".$msg);
+			$processedReport++;
 			if ($processResult & 4) {
 				# processXML returned a value with database error bit enabled, do nothing at all!
 				next;
@@ -317,6 +320,7 @@ if ($reports_source == TS_IMAP) {
 
 	# We're all done with IMAP here.
 	$imap->logout();
+	if ( $debug || $processInfo ) { print "Processed $processedReport emails.\n"; }
 
 } else { # TS_MESSAGE_FILE or TS_XML_FILE or TS_MBOX_FILE
 
@@ -379,7 +383,7 @@ if ($reports_source == TS_IMAP) {
 			}
 		}
 	}
-	print "Processed $counts messages(s).\n" if $debug;
+	if ($debug || $processInfo) { print "Processed $counts messages(s).\n"; }
 }
 
 
