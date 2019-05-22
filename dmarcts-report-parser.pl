@@ -116,7 +116,7 @@ sub show_usage {
 # Define all possible configuration options.
 our ($debug, $delete_reports, $delete_failed, $reports_replace, $maxsize_xml, $compress_xml,
 	$dbname, $dbuser, $dbpass, $dbhost, $dbport,
-	$imapserver, $imapuser, $imappass, $imapignoreerror, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt, $tlsverify);
+	$imapserver, $imapport, $imapuser, $imappass, $imapignoreerror, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt, $tlsverify);
 
 # defaults
 $maxsize_xml 	= 50000;
@@ -215,32 +215,44 @@ checkDatabase($dbh);
 
 # Process messages based on $reports_source.
 if ($reports_source == TS_IMAP) {
+	my $socketargs = '';
 
 	# Disable verify mode for TLS support.
 	if ($imaptls == 1) {
-    if ( $tlsverify == 0 ) {
-      print "use tls without verify servercert.\n" if $debug;
-      $imapopt = [ SSL_verify_mode => SSL_VERIFY_NONE ];
-    } else {
-      print "use tls with verify servercert.\n" if $debug;
-      $imapopt = [ SSL_verify_mode => SSL_VERIFY_PEER ];
-    }
+		if ( $tlsverify == 0 ) {
+			print "use tls without verify servercert.\n" if $debug;
+			$imapopt = [ SSL_verify_mode => SSL_VERIFY_NONE ];
+		} else {
+			print "use tls with verify servercert.\n" if $debug;
+			$imapopt = [ SSL_verify_mode => SSL_VERIFY_PEER ];
+		}
+	# The whole point of setting this socket arg is so that we don't get the nasty warning
+	} else {
+		print "using ssl without verify servercert.\n" if $debug;
+		$socketargs = [ SSL_verify_mode => SSL_VERIFY_NONE ];
 	}
-
   
 	print "connection to $imapserver with Ssl => $imapssl, User => $imapuser, Ignoresizeerrors => $imapignoreerror\n" if $debug;
 
 	# Setup connection to IMAP server.
-	my $imap = Mail::IMAPClient->new( Server => $imapserver,
-		Ssl => $imapssl,
-		Starttls => $imapopt,
-		User => $imapuser,
-		Password => $imappass,
-		Ignoresizeerrors => $imapignoreerror,
-		Debug=> $debug
-  )
+	my $imap = Mail::IMAPClient->new(
+	  Server     => $imapserver,
+	  Port       => $imapport,
+	  Ssl        => $imapssl,
+	  Starttls   => $imapopt,
+	  Debug      => $debug,
+	  Socketargs => $socketargs
+	)
 	# module uses eval, so we use $@ instead of $!
 	or die "IMAP Failure: $@";
+
+	# This connection is finished this way because of the tradgedy of exchange...
+	$imap->User($imapuser);
+	$imap->Password($imappass);
+	$imap->connect();
+
+	# Ignore Size Errors if we're using Exchange
+	$imap->Ignoresizeerrors($imapignoreerror);
 
 	# Set $imap to UID mode, which will force imap functions to use/return
 	# UIDs, instead of message sequence numbers. UIDs are not allowed to
@@ -327,7 +339,7 @@ if ($reports_source == TS_IMAP) {
 					$num++;
 					$filecontent = $parser->read_next_email();
 					if (defined($filecontent)) {
-						if (processXML(TS_MESSAGE_FILE, $$filecontent, "message #$num of mbox file <$f>") & 2) {
+						if (processXML(TS_MESSAGE_FILE, $filecontent, "message #$num of mbox file <$f>") & 2) {
 							# processXML return a value with delete bit enabled
 							print "Removing message #$num from mbox file <$f> is not yet supported.\n";
 						}
@@ -377,14 +389,16 @@ if ($reports_source == TS_IMAP) {
 ################################################################################
 
 sub processXML {
-	my $type = $_[0];
-	my $filecontent = $_[1];
-	my $f = $_[2];
+	my ($type, $filecontent, $f) = (@_);
 
 	if ($debug) {
 		print "\n";
 		print "----------------------------------------------------------------\n";
 		print "Processing $f \n";
+		print "----------------------------------------------------------------\n";
+		print "Type: $type\n";
+		print "FileContent: $filecontent\n";
+		print "MSG: $f\n";
 		print "----------------------------------------------------------------\n";
 	}
 
@@ -435,7 +449,7 @@ sub processXML {
 # the fields of the first ZIPed XML file embedded into the message. The XML
 # itself is not checked to be a valid DMARC report.
 sub getXMLFromMessage {
-	my $message = $_[0];
+	my ($message) = (@_);
 	
 	# fixup type in trustwave SEG mails
         $message =~ s/ContentType:/Content-Type:/;
