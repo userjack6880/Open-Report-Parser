@@ -327,7 +327,7 @@ if ($reports_source == TS_IMAP) {
 					$num++;
 					$filecontent = $parser->read_next_email();
 					if (defined($filecontent)) {
-						if (processXML(TS_MESSAGE_FILE, $$filecontent, "message #$num of mbox file <$f>") & 2) {
+						if (processXML(TS_MESSAGE_FILE, $filecontent, "message #$num of mbox file <$f>") & 2) {
 							# processXML return a value with delete bit enabled
 							print "Removing message #$num from mbox file <$f> is not yet supported.\n";
 						}
