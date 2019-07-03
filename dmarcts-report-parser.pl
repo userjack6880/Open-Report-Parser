@@ -72,6 +72,7 @@ use Socket;
 use Socket6;
 use PerlIO::gzip;
 use File::Basename ();
+use File::MimeInfo;
 use IO::Socket::SSL;
 #use IO::Socket::SSL 'debug3';
 
@@ -181,12 +182,17 @@ if (exists $options{i}) {
 	$reports_source = TS_IMAP;
 }
 
+if (exists $options{z}) {
+	$source_options++;
+	$reports_source = TS_ZIP_FILE;
+}
+
 if ($source_options > 1) {
 	show_usage();
-	die "Only one source option can be used (-i, -x, -m or -e).\n";
+	die "Only one source option can be used (-i, -x, -m, -e or -z).\n";
 } elsif ($source_options == 0) {
 	show_usage();
-	die "Please provide a source option (-i, -x, -m or -e).\n";
+	die "Please provide a source option (-i, -x, -m, -e or -z).\n";
 }
 
 if ($ARGV[0]) {
@@ -351,6 +357,14 @@ if ($reports_source == TS_IMAP) {
 					}
 				} while(defined($filecontent));
 
+			} elsif ($reports_source == TS_ZIP_FILE) {
+				# filecontent is zip file
+				$filecontent = getXMLFromZip($f);
+				if (processXML(TS_ZIP_FILE, $filecontent, "xml file <$f>") & 2) {
+					# processXML return a value with delete bit enabled
+					unlink($f);
+				}
+				$counts++;
 			} elsif (open FILE, $f) {
 
 				$filecontent = join("", <FILE>);
@@ -408,6 +422,7 @@ sub processXML {
 
 	my $xml; #TS_XML_FILE or TS_MESSAGE_FILE
 	if ($type == TS_MESSAGE_FILE) {$xml = getXMLFromMessage($filecontent);}
+	elsif ($type == TS_ZIP_FILE) {$xml = $filecontent;}
 	else {$xml = getXMLFromXMLString($filecontent);}
 
 	# If !$xml, the file/mail is probably not a DMARC report.
@@ -586,6 +601,73 @@ sub getXMLFromMessage {
 	return $xml;
 }
 
+################################################################################
+
+sub getXMLFromZip {
+	my $filename = $_[0];
+	my $mtype = mimetype($filename);
+
+	if (open FILE, $filename) {
+		if ($debug) {
+			print "Filename: $filename, MimeType: $mtype\n";
+		}
+	}
+
+	my $isgzip = 0;
+
+	if(lc $mtype eq "application/zip") {
+		if ($debug) {
+			print "This is a ZIP file \n";
+		}
+	} elsif (lc $mtype eq "application/gzip" or lc $mtype eq "application/x-gzip") {
+		if ($debug) {
+			print "This is a GZIP file \n";
+		}
+
+		$isgzip = 1;
+	} else {
+		if ($debug) {
+			print "This is not an archive file \n";
+		}
+	}
+
+	# If a ZIP has been found, extract XML and parse it.
+	my $xml;
+	if(defined($filename)) {
+		# Open the zip file and process the XML contained inside.
+		my $unzip = "";
+		if($isgzip) {
+			open(XML, "<:gzip", $filename)
+			or $unzip = "ungzip";
+		} else {
+			open(XML,"unzip -p " . $filename . " |")
+			or $unzip = "unzip"; # Will never happen.
+
+			# Sadly unzip -p never failes, but we can check if the
+			# filehandle points to an empty file and pretend it did
+			# not open/failed.
+			if (eof XML) {
+				$unzip = "unzip";
+				close XML;
+			}
+		}
+
+		# Read XML if possible (if open)
+		if ($unzip eq "") {
+			$xml = getXMLFromXMLString(join("", <XML>));
+			if (!$xml) {
+				print "The XML found in ZIP file (<$filename>) does not seem to be valid XML! ";
+			}
+			close XML;
+		} else {
+			print "Failed to $unzip ZIP file (<$filename>)! ";
+		}
+	} else {
+		print "Could not find an <$filename>! ";
+	}
+
+	return $xml;
+}
 
 ################################################################################
 
