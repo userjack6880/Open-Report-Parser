@@ -156,7 +156,7 @@ if (!defined $imapignoreerror ) {
 # Get command line options.
 my %options = ();
 use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2, TS_MBOX_FILE => 3 };
-GetOptions( \%options, 'd', 'r', 'x', 'm', 'e', 'i', 'delete', 'info' );
+GetOptions( \%options, 'd', 'r', 'x', 'm', 'e', 'i', 'z', 'delete', 'info' );
 
 # Evaluate command line options
 my $source_options = 0;
