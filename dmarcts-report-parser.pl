@@ -103,6 +103,7 @@ sub show_usage {
 	print "        -r : Replace existing reports rather than skipping them. \n";
 	print "  --delete : Delete processed message files (the XML is stored in the \n";
 	print "             database for later reference). \n";
+	print "    --info : Print out number of XML files or emails processed. \n";
 	print "\n";
 }
 
@@ -117,8 +118,8 @@ sub show_usage {
 # Define all possible configuration options.
 our ($debug, $delete_reports, $delete_failed, $reports_replace, $maxsize_xml, $compress_xml,
 	$dbname, $dbuser, $dbpass, $dbhost, $dbport,
-	$imapserver, $imapuser, $imappass, $imapignoreerror, $imapssl, $imaptls, $imapmovefolder,
-	$imapmovefoldererr, $imapreadfolder, $imapopt, $tlsverify);
+  $imapserver, $imapport, $imapuser, $imappass, $imapignoreerror, $imapssl, $imaptls, $imapmovefolder,
+	$imapmovefoldererr, $imapreadfolder, $imapopt, $tlsverify, $processInfo);
 
 # defaults
 $maxsize_xml 	= 50000;
@@ -156,7 +157,7 @@ if (!defined $imapignoreerror ) {
 # Get command line options.
 my %options = ();
 use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2, TS_MBOX_FILE => 3, TS_ZIP_FILE => 4 };
-GetOptions( \%options, 'd', 'r', 'x', 'm', 'e', 'i', 'z', 'delete' );
+GetOptions( \%options, 'd', 'r', 'x', 'm', 'e', 'i', 'z', 'delete', 'info' );
 
 # Evaluate command line options
 my $source_options = 0;
@@ -211,7 +212,7 @@ if ($ARGV[0]) {
 if (exists $options{r}) {$reports_replace = 1;}
 if (exists $options{d}) {$debug = 1;}
 if (exists $options{delete}) {$delete_reports = 1;}
-
+if (exists $options{info}) {$processInfo = 1;}
 
 # Setup connection to database server.
 my $dbh = DBI->connect("DBI:mysql:database=$dbname;host=$dbhost;port=$dbport",
@@ -222,32 +223,45 @@ checkDatabase($dbh);
 
 # Process messages based on $reports_source.
 if ($reports_source == TS_IMAP) {
+	my $socketargs = '';
+	my $processedReport = 0;
 
 	# Disable verify mode for TLS support.
 	if ($imaptls == 1) {
-    if ( $tlsverify == 0 ) {
-      print "use tls without verify servercert.\n" if $debug;
-      $imapopt = [ SSL_verify_mode => SSL_VERIFY_NONE ];
-    } else {
-      print "use tls with verify servercert.\n" if $debug;
-      $imapopt = [ SSL_verify_mode => SSL_VERIFY_PEER ];
-    }
+		if ( $tlsverify == 0 ) {
+			print "use tls without verify servercert.\n" if $debug;
+			$imapopt = [ SSL_verify_mode => SSL_VERIFY_NONE ];
+		} else {
+			print "use tls with verify servercert.\n" if $debug;
+			$imapopt = [ SSL_verify_mode => SSL_VERIFY_PEER ];
+		}
+	# The whole point of setting this socket arg is so that we don't get the nasty warning
+	} else {
+		print "using ssl without verify servercert.\n" if $debug;
+		$socketargs = [ SSL_verify_mode => SSL_VERIFY_NONE ];
 	}
-
   
 	print "connection to $imapserver with Ssl => $imapssl, User => $imapuser, Ignoresizeerrors => $imapignoreerror\n" if $debug;
 
 	# Setup connection to IMAP server.
-	my $imap = Mail::IMAPClient->new( Server => $imapserver,
-		Ssl => $imapssl,
-		Starttls => $imapopt,
-		User => $imapuser,
-		Password => $imappass,
-		Ignoresizeerrors => $imapignoreerror,
-		Debug=> $debug
-  )
+	my $imap = Mail::IMAPClient->new(
+	  Server     => $imapserver,
+	  Port       => $imapport,
+	  Ssl        => $imapssl,
+	  Starttls   => $imapopt,
+	  Debug      => $debug,
+	  Socketargs => $socketargs
+	)
 	# module uses eval, so we use $@ instead of $!
 	or die "IMAP Failure: $@";
+
+	# This connection is finished this way because of the tradgedy of exchange...
+	$imap->User($imapuser);
+	$imap->Password($imappass);
+	$imap->connect();
+
+	# Ignore Size Errors if we're using Exchange
+	$imap->Ignoresizeerrors($imapignoreerror);
 
 	# Set $imap to UID mode, which will force imap functions to use/return
 	# UIDs, instead of message sequence numbers. UIDs are not allowed to
@@ -274,6 +288,7 @@ if ($reports_source == TS_IMAP) {
 		foreach my $msg (@msgs) {
 
 			my $processResult = processXML(TS_MESSAGE_FILE, $imap->message_string($msg), "IMAP message with UID #".$msg);
+			$processedReport++;
 			if ($processResult & 4) {
 				# processXML returned a value with database error bit enabled, do nothing at all!
 				next;
@@ -302,6 +317,7 @@ if ($reports_source == TS_IMAP) {
 
 	# We're all done with IMAP here.
 	$imap->logout();
+	if ( $debug || $processInfo ) { print "Processed $processedReport emails.\n"; }
 
 } else { # TS_MESSAGE_FILE or TS_XML_FILE or TS_MBOX_FILE
 
@@ -372,7 +388,7 @@ if ($reports_source == TS_IMAP) {
 			}
 		}
 	}
-	print "Processed $counts messages(s).\n" if $debug;
+	if ($debug || $processInfo) { print "Processed $counts messages(s).\n"; }
 }
 
 
@@ -409,14 +425,16 @@ sub moveToImapFolder {
 }
 
 sub processXML {
-	my $type = $_[0];
-	my $filecontent = $_[1];
-	my $f = $_[2];
+	my ($type, $filecontent, $f) = (@_);
 
 	if ($debug) {
 		print "\n";
 		print "----------------------------------------------------------------\n";
 		print "Processing $f \n";
+		print "----------------------------------------------------------------\n";
+		print "Type: $type\n";
+		print "FileContent: $filecontent\n";
+		print "MSG: $f\n";
 		print "----------------------------------------------------------------\n";
 	}
 
@@ -468,7 +486,7 @@ sub processXML {
 # the fields of the first ZIPed XML file embedded into the message. The XML
 # itself is not checked to be a valid DMARC report.
 sub getXMLFromMessage {
-	my $message = $_[0];
+	my ($message) = (@_);
 	
 	# fixup type in trustwave SEG mails
         $message =~ s/ContentType:/Content-Type:/;
