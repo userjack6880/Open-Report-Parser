@@ -118,7 +118,8 @@ sub show_usage {
 # Define all possible configuration options.
 our ($debug, $delete_reports, $delete_failed, $reports_replace, $maxsize_xml, $compress_xml,
 	$dbname, $dbuser, $dbpass, $dbhost, $dbport,
-	$imapserver, $imapport, $imapuser, $imappass, $imapignoreerror, $imapssl, $imaptls, $imapmovefolder, $imapreadfolder, $imapopt, $tlsverify, $processInfo);
+  $imapserver, $imapport, $imapuser, $imappass, $imapignoreerror, $imapssl, $imaptls, $imapmovefolder,
+	$imapmovefoldererr, $imapreadfolder, $imapopt, $tlsverify, $processInfo);
 
 # defaults
 $maxsize_xml 	= 50000;
@@ -296,26 +297,16 @@ if ($reports_source == TS_IMAP) {
 				$imap->delete_message($msg)
 				or print "Could not delete IMAP message. [$@]\n";
 			} elsif ($imapmovefolder) {
-				print "Moving (copy and delete) processed IMAP message file to IMAP folder: $imapmovefolder\n" if $debug;
-
-				# Try to create $imapmovefolder, if it does not exist.
-				if (!$imap->exists($imapmovefolder)) {
-					$imap->create($imapmovefolder)
-					or print "Could not create IMAP folder: $imapmovefolder.\n";
+				if ($processResult & 1 || !$imapmovefoldererr) {
+					# processXML processed the XML OK, or it failed and there is no error imap folder
+					moveToImapFolder($imap, $msg, $imapmovefolder);
+				} elsif ($imapmovefoldererr) {
+					# processXML failed and error folder set
+					moveToImapFolder($imap, $msg, $imapmovefoldererr);
 				}
-
-				# Try to move the message to $imapmovefolder.
-				my $newid = $imap->copy($imapmovefolder, [ $msg ]);
-				if (!$newid) {
-					print "Error on moving (copy and delete) processed IMAP message: Could not COPY message to IMAP folder: <$imapmovefolder>!\n";
-					print "Messsage will not be moved/deleted. [$@]\n";
-				} else {
-					$imap->delete_message($msg)
-					or do {
-						print "Error on moving (copy and delete) processed IMAP message: Could not DELETE message\n";
-						print "after copying it to <$imapmovefolder>. [$@]\n";
-					}
-				}
+			} elsif ($imapmovefoldererr && !($processResult & 1)) {
+				# processXML failed, error imap folder set, but imapmovefolder unset. An unlikely setup, but still...
+				moveToImapFolder($imap, $msg, $imapmovefoldererr);
 			}
 		}
 
@@ -405,6 +396,33 @@ if ($reports_source == TS_IMAP) {
 ################################################################################
 ### subroutines ################################################################
 ################################################################################
+
+sub moveToImapFolder {
+	my $imap = $_[0];
+	my $msg = $_[1];
+	my $imapfolder = $_[2];
+
+	print "Moving (copy and delete) IMAP message file to IMAP folder: $imapfolder\n" if $debug;
+
+	# Try to create $imapfolder, if it does not exist.
+	if (!$imap->exists($imapfolder)) {
+		$imap->create($imapfolder)
+		or print "Could not create IMAP folder: $imapfolder.\n";
+	}
+
+	# Try to move the message to $imapfolder.
+	my $newid = $imap->copy($imapfolder, [ $msg ]);
+	if (!$newid) {
+		print "Error on moving (copy and delete) processed IMAP message: Could not COPY message to IMAP folder: <$imapfolder>!\n";
+		print "Messsage will not be moved/deleted. [$@]\n";
+	} else {
+		$imap->delete_message($msg)
+		or do {
+			print "Error on moving (copy and delete) processed IMAP message: Could not DELETE message\n";
+			print "after copying it to <$imapfolder>. [$@]\n";
+		}
+	}
+}
 
 sub processXML {
 	my ($type, $filecontent, $f) = (@_);

@@ -31,6 +31,10 @@ $imapreadfolder   = 'dmarc';
 # the --delete option!)
 $imapmovefolder = 'dmarc/processed';
 
+# If $imapmovefoldererr is set, IMAP messages that fail will be moved. If unset, failed messages
+# will move to $imapmovefolder (if it is set). Overruled by the --delete option!
+$imapmovefoldererr = 'Inbox.notProcessed';
+
 # maximum size of XML files to store in database, long files can cause transaction aborts
 $maxsize_xml = 50000;
 # store XML as base64 encopded gzip in database (save space, harder usable)
