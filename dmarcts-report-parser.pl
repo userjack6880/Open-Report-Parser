@@ -717,12 +717,28 @@ sub storeXMLInDatabase {
 	my $id = $xml->{'report_metadata'}->{'report_id'};
 	my $email = $xml->{'report_metadata'}->{'email'};
 	my $extra = $xml->{'report_metadata'}->{'extra_contact_info'};
-	my $domain =  $xml->{'policy_published'}->{'domain'};
-	my $policy_adkim = $xml->{'policy_published'}->{'adkim'};
-	my $policy_aspf = $xml->{'policy_published'}->{'aspf'};
-	my $policy_p = $xml->{'policy_published'}->{'p'};
-	my $policy_sp = $xml->{'policy_published'}->{'sp'};
-	my $policy_pct = $xml->{'policy_published'}->{'pct'};
+        my $domain  = undef;
+        my $policy_adkim = undef;
+        my $policy_aspf = undef;
+        my $policy_p = undef;
+        my $policy_sp = undef;
+        my $policy_pct = undef;
+ 
+        if (ref $xml->{'policy_published'} eq "HASH") {
+                $domain =  $xml->{'policy_published'}->{'domain'};
+                $policy_adkim = $xml->{'policy_published'}->{'adkim'};
+                $policy_aspf = $xml->{'policy_published'}->{'aspf'};
+                $policy_p = $xml->{'policy_published'}->{'p'};
+                $policy_sp = $xml->{'policy_published'}->{'sp'};
+                $policy_pct = $xml->{'policy_published'}->{'pct'};
+         } else {
+                $domain =  $xml->{'policy_published'}[0]->{'domain'};
+                $policy_adkim = $xml->{'policy_published'}[0]->{'adkim'};
+                $policy_aspf = $xml->{'policy_published'}[0]->{'aspf'};
+                $policy_p = $xml->{'policy_published'}[0]->{'p'};
+                $policy_sp = $xml->{'policy_published'}[0]->{'sp'};
+                $policy_pct = $xml->{'policy_published'}[0]->{'pct'};
+        }
 
 	# see if already stored
 	my $sth = $dbh->prepare(qq{SELECT org, serial FROM report WHERE reportid=?});
