@@ -523,7 +523,7 @@ sub getXMLFromMessage {
 		$location = $body->path;
 		$isgzip = 1;
 
-	} elsif (lc $mtype eq "multipart/mixed") {
+	} elsif (lc $mtype =~ "multipart/") {
 		# At the moment, nease.net messages are multi-part, so we need
 		# to breakdown the attachments and find the zip.
 		if ($debug) {
