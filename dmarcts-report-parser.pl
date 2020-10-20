@@ -828,7 +828,7 @@ sub storeXMLInDatabase {
 					# 	Section 6.1: https://tools.ietf.org/html/rfc6376#section-6.1
 					# And the GitHub issues at
 					#	https://github.com/techsneeze/dmarcts-report-viewer/issues/47
-					#	https://github.com/techsneeze/dmarcts-report-parser/pull/75
+					#	https://github.com/techsneeze/dmarcts-report-parser/pull/78
 					$dkimresult = "pass";
 					last;
 				} else {
