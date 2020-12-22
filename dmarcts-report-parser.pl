@@ -814,19 +814,36 @@ sub storeXMLInDatabase {
 			$dkim = $rp->{'domain'};
 			$dkim = undef if ref $dkim eq "HASH";
 			$dkimresult = $rp->{'result'};
-		} else { # array
-			# glom sigs together, report first result
+		} else { # array, i.e. multiple dkim results (usually from multiple domains)
+			# glom sigs together
 			$dkim = join '/',map { my $d = $_->{'domain'}; ref $d eq "HASH"?"": $d } @$rp;
-			$dkimresult = $rp->[0]->{'result'};
-		}
-		$rp = $r{'auth_results'}->{'spf'};
-		if(ref $rp eq "HASH") {
-			$spf = $rp->{'domain'};
-			$spfresult = $rp->{'result'};
-		} else { # array
-			# glom domains together, report first result
-			$spf = join '/',map { my $d = $_->{'domain'}; ref $d eq "HASH"? "": $d } @$rp;
-			$spfresult = $rp->[0]->{'result'};
+			# report results
+			my $rp_len = scalar(@$rp);
+			for ( my $i=0; $i < $rp_len; $i++ ) {
+				if ( $rp->[$i]->{'result'} eq "pass" ) {
+					# If any one dkim result is a "pass", this should yield an overall "pass" and immediately exit the for loop, ignoring any remaing results
+					# See
+					# RFC 6376, DomainKeys Identified Mail (DKIM) Signatures
+					# 	Section 4.2: https://tools.ietf.org/html/rfc6376#section-4.2 and
+					# 	Section 6.1: https://tools.ietf.org/html/rfc6376#section-6.1
+					# And the GitHub issues at
+					#	https://github.com/techsneeze/dmarcts-report-viewer/issues/47
+					#	https://github.com/techsneeze/dmarcts-report-parser/pull/78
+					$dkimresult = "pass";
+					last;
+				} else {
+					for ( my $j=$i+1; $j < $rp_len; $j++ ) {
+						if ( $rp->[$i]->{'result'} eq $rp->[$j]->{'result'} ) {
+						# Compare each dkim result to the next one to see if all of the dkim results are the same.
+						# If all of the dkim results are the same, that will be the overall result.
+						# If any of them are different, and don't contain a "pass" result, then $dkimresult will be empty
+							$dkimresult = $rp->[0]->{'result'};
+						} else {
+							$dkimresult = undef;
+						}
+					}
+				}
+			}
 		}
 
 		$rp = $r{'row'}->{'policy_evaluated'}->{'reason'};
