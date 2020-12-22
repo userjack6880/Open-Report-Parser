@@ -128,6 +128,11 @@ $maxsize_xml 	= 50000;
 # to be in the current working directory.
 my $conf_file = 'dmarcts-report-parser.conf';
 
+# Get command line options.
+my %options = ();
+use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2, TS_MBOX_FILE => 3, TS_ZIP_FILE => 4 };
+GetOptions( \%options, 'd', 'r', 'x', 'm', 'e', 'i', 'z', 'delete', 'info', 'c' => \$conf_file );
+
 # locate conf file or die
 if ( -e $conf_file ) {
   #$conf_file = "./$conf_file";
@@ -153,11 +158,6 @@ if (!defined $imapreadfolder ) {
 if (!defined $imapignoreerror ) {
   $imapignoreerror = 0;   # maintain compatibility to old version
 }
-  
-# Get command line options.
-my %options = ();
-use constant { TS_IMAP => 0, TS_MESSAGE_FILE => 1, TS_XML_FILE => 2, TS_MBOX_FILE => 3, TS_ZIP_FILE => 4 };
-GetOptions( \%options, 'd', 'r', 'x', 'm', 'e', 'i', 'z', 'delete', 'info' );
 
 # Evaluate command line options
 my $source_options = 0;
@@ -186,6 +186,10 @@ if (exists $options{i}) {
 if (exists $options{z}) {
 	$source_options++;
 	$reports_source = TS_ZIP_FILE;
+}
+
+if (exists $options{c}) {
+	$source_options++;
 }
 
 if ($source_options > 1) {
