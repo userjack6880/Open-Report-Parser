@@ -850,6 +850,36 @@ sub storeXMLInDatabase {
 			}
 		}
 
+		$rp = $r{'auth_results'}->{'spf'};
+		if(ref $rp eq "HASH") {
+			$spf = $rp->{'domain'};
+			$spf = undef if ref $spf eq "HASH";
+			$spfresult = $rp->{'result'};
+		} else { # array, i.e. multiple dkim results (usually from multiple domains)
+			# glom sigs together
+			$spf = join '/',map { my $d = $_->{'domain'}; ref $d eq "HASH"?"": $d } @$rp;
+			# report results
+			my $rp_len = scalar(@$rp);
+			for ( my $i=0; $i < $rp_len; $i++ ) {
+				if ( $rp->[$i]->{'result'} eq "pass" ) {
+					# If any one spf result is a "pass", this should yield an overall "pass" and immediately exit the for loop, ignoring any remaing results
+					$spfresult = "pass";
+					last;
+				} else {
+					for ( my $j=$i+1; $j < $rp_len; $j++ ) {
+						if ( $rp->[$i]->{'result'} eq $rp->[$j]->{'result'} ) {
+						# Compare each spf result to the next one to see if all of the spf results are the same.
+						# If all of the spf results are the same, that will be the overall result.
+						# If any of them are different, and don't contain a "pass" result, then $spfresult will be empty
+							$spfresult = $rp->[0]->{'result'};
+						} else {
+							$spfresult = undef;
+						}
+					}
+				}
+			}
+		}
+
 		$rp = $r{'row'}->{'policy_evaluated'}->{'reason'};
 		if(ref $rp eq "HASH") {
 			$reason = $rp->{'type'};
