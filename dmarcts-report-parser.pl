@@ -117,12 +117,13 @@ sub show_usage {
 
 # Define all possible configuration options.
 our ($debug, $delete_reports, $delete_failed, $reports_replace, $maxsize_xml, $compress_xml,
-	$dbname, $dbuser, $dbpass, $dbhost, $dbport,
+	$dbname, $dbuser, $dbpass, $dbhost, $dbport, $db_tx_support,
   $imapserver, $imapport, $imapuser, $imappass, $imapignoreerror, $imapssl, $imaptls, $imapmovefolder,
 	$imapmovefoldererr, $imapreadfolder, $imapopt, $tlsverify, $processInfo);
 
 # defaults
 $maxsize_xml 	= 50000;
+$db_tx_support	= 1;
 
 # Load script configuration options from local config file. The file is expected
 # to be in the current working directory.
@@ -744,6 +745,14 @@ sub storeXMLInDatabase {
                 $policy_pct = $xml->{'policy_published'}[0]->{'pct'};
         }
 
+	# begin transaction
+	if ($db_tx_support) {
+		$dbh->do(qq{START TRANSACTION});
+		if ($dbh->errstr) {
+				print "Cannot start transaction (" . $dbh->errstr ."). Continuing without transaction support.\n";
+				$db_tx_support = 0;
+		}
+	}
 	# see if already stored
 	my $sth = $dbh->prepare(qq{SELECT org, serial FROM report WHERE reportid=?});
 	$sth->execute($id);
@@ -935,6 +944,17 @@ sub storeXMLInDatabase {
 		print "Result $res XML: $xml->{raw_xml}\n";
 	}
 
+	if ($res <= 0) {
+		if ($db_tx_support) {
+			print "Cannot add records to rptrecord. Rolling back DB transaction.\n";
+			$dbh->do(qq{ROLLBACK});
+			if ($dbh->errstr) {
+				print "Cannot rollback transaction (" . $dbh->errstr .").\n";
+			}
+		} else {
+			print "Warning: errors while adding to rptrecord, serial $serial records likely obsolete.\n";
+		}
+	}
 	return $res;
 }
 
