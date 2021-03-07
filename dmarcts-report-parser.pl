@@ -960,6 +960,13 @@ sub storeXMLInDatabase {
 		} else {
 			print "Warning: errors while adding to rptrecord, serial $serial records likely obsolete.\n";
 		}
+	} else {
+		if ($db_tx_support) {
+			$dbh->do(qq{COMMIT});
+			if ($dbh->errstr) {
+				print "Cannot commit transaction (" . $dbh->errstr .").\n";
+			}
+		}
 	}
 	return $res;
 }
