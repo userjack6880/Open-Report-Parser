@@ -296,7 +296,13 @@ if ($reports_source == TS_IMAP) {
 			$processedReport++;
 			if ($processResult & 4) {
 				# processXML returned a value with database error bit enabled, do nothing at all!
-				next;
+				if ($imapmovefoldererr) {
+					# if we can, move to error folder
+					moveToImapFolder($imap, $msg, $imapmovefoldererr);
+				} else {
+					# do nothing at all
+					next;
+				}
 			} elsif ($processResult & 2) {
 				# processXML return a value with delete bit enabled.
 				$imap->delete_message($msg)
