@@ -828,6 +828,10 @@ sub storeXMLInDatabase {
 		my $identifier_hfrom = $r{'identifiers'}->{'header_from'};
 
 		my ($dkim, $dkimresult, $spf, $spfresult, $reason);
+		if(ref $r{'auth_results'} ne "HASH"){
+			print "Report has no auth_results data. Skipped.\n";
+			return 0;
+		}
 		my $rp = $r{'auth_results'}->{'dkim'};
 		if(ref $rp eq "HASH") {
 			$dkim = $rp->{'domain'};
