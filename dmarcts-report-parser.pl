@@ -758,6 +758,12 @@ sub storeXMLInDatabase {
                 $policy_pct = $xml->{'policy_published'}[0]->{'pct'};
         }
 
+	my $record = $xml->{'record'};
+	if ( ! defined($record) ) {
+		warn "$scriptname: $org: $id: No records in report. Skipped.\n";
+		return 0;
+	}
+
 	# begin transaction
 	if ($db_tx_support) {
 		$dbh->do(qq{START TRANSACTION});
@@ -819,13 +825,15 @@ sub storeXMLInDatabase {
 	if ($debug){
 		print " serial $serial \n";
 	}
-	my $record = $xml->{'record'};
 	sub dorow($$$$) {
 		my ($serial,$recp,$org,$id) = @_;
 		my %r = %$recp;
 
 		my $ip = $r{'row'}->{'source_ip'};
-		#print "ip $ip\n";
+		if ( $ip eq '' ) {
+			warn "$scriptname: $org: $id: source_ip is empty. Skipped.\n";
+			return 0;
+		}
 		my $count = $r{'row'}->{'count'};
 		my $disp = $r{'row'}->{'policy_evaluated'}->{'disposition'};
 		 # some reports don't have dkim/spf, "unknown" is default for these
@@ -928,7 +936,7 @@ sub storeXMLInDatabase {
 			$iptype = "ip6";
 		} else {
 			warn "$scriptname: $org: $id: ??? mystery ip $ip\n";
-			next; # of dorow
+			return 0;
 		}
 
 		$dbh->do(qq{INSERT INTO rptrecord(serial,$iptype,rcount,disposition,spf_align,dkim_align,reason,dkimdomain,dkimresult,spfdomain,spfresult,identifier_hfrom)
