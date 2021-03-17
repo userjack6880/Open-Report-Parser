@@ -920,7 +920,7 @@ sub storeXMLInDatabase {
 				}
 			}
 		}
-		if ( ! grep { $_ eq $dkimresult } ALLOWED_DKIMRESULT ) {
+		if ( ! defined($dkimresult) || ! grep { $_ eq $dkimresult } ALLOWED_DKIMRESULT ) {
 			$dkimresult = 'unknown';
 		};
 
@@ -953,7 +953,7 @@ sub storeXMLInDatabase {
 				}
 			}
 		}
-		if ( ! grep { $_ eq $spfresult } ALLOWED_SPFRESULT ) {
+		if ( ! defined($spfresult) || ! grep { $_ eq $spfresult } ALLOWED_SPFRESULT ) {
 			$spfresult = 'unknown';
 		};
 
