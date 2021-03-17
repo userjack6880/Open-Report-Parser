@@ -914,7 +914,7 @@ sub storeXMLInDatabase {
 						# If any of them are different, and don't contain a "pass" result, then $dkimresult will be empty
 							$dkimresult = $rp->[0]->{'result'};
 						} else {
-							$dkimresult = undef;
+							$dkimresult = 'unknown';
 						}
 					}
 				}
@@ -947,7 +947,7 @@ sub storeXMLInDatabase {
 						# If any of them are different, and don't contain a "pass" result, then $spfresult will be empty
 							$spfresult = $rp->[0]->{'result'};
 						} else {
-							$spfresult = undef;
+							$spfresult = 'unknown';
 						}
 					}
 				}
