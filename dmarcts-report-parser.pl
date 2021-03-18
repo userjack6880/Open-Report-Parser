@@ -867,6 +867,9 @@ sub storeXMLInDatabase {
 		#print "ip $ip\n";
 		my $count = $r{'row'}->{'count'};
 		my $disp = $r{'row'}->{'policy_evaluated'}->{'disposition'};
+		if ( ! grep { $_ eq $disp } ALLOWED_DISPOSITION ) {
+			$disp = 'unknown';
+		};
 		 # some reports don't have dkim/spf, "unknown" is default for these
 		my $dkim_align = $r{'row'}->{'policy_evaluated'}->{'dkim'};
 		if ( ! grep { $_ eq $dkim_align } ALLOWED_DKIM_ALIGN ) {
