@@ -370,7 +370,7 @@ if ($reports_source == TS_IMAP) {
 					unlink($f);
 				}
 				$counts++;
-			} elsif (open FILE, $f) {
+			} elsif (open(FILE, "<", $f)) {
 
 				$filecontent = join("", <FILE>);
 				close FILE;
@@ -603,7 +603,7 @@ sub getXMLFromMessage {
 			open(XML, "<:gzip", $location)
 			or $unzip = "ungzip";
 		} else {
-			open(XML,"unzip -p " . $location . " |")
+			open(XML, "-|", "unzip", "-p", $location)
 			or $unzip = "unzip"; # Will never happen.
 
 			# Sadly unzip -p never failes, but we can check if the
@@ -611,7 +611,6 @@ sub getXMLFromMessage {
 			# not open/failed.
 			if (eof XML) {
 				$unzip = "unzip";
-				close XML;
 			}
 		}
 
@@ -626,6 +625,7 @@ sub getXMLFromMessage {
 		} else {
 			warn "$scriptname: Subject: $subj\n:";
 			warn "$scriptname: Failed to $unzip ZIP file (temp. location: <$location>)! \n";
+			close XML;
 		}
 	} else {
 		warn "$scriptname: Subject: $subj\n:";
@@ -643,10 +643,8 @@ sub getXMLFromZip {
 	my $filename = $_[0];
 	my $mtype = mimetype($filename);
 
-	if (open FILE, $filename) {
-		if ($debug) {
-			print "Filename: $filename, MimeType: $mtype\n";
-		}
+	if ($debug) {
+		print "Filename: $filename, MimeType: $mtype\n";
 	}
 
 	my $isgzip = 0;
@@ -676,7 +674,7 @@ sub getXMLFromZip {
 			open(XML, "<:gzip", $filename)
 			or $unzip = "ungzip";
 		} else {
-			open(XML,"unzip -p " . $filename . " |")
+			open(XML, "-|", "unzip", "-p", $filename)
 			or $unzip = "unzip"; # Will never happen.
 
 			# Sadly unzip -p never failes, but we can check if the
@@ -684,7 +682,6 @@ sub getXMLFromZip {
 			# not open/failed.
 			if (eof XML) {
 				$unzip = "unzip";
-				close XML;
 			}
 		}
 
@@ -697,6 +694,7 @@ sub getXMLFromZip {
 			close XML;
 		} else {
 			warn "$scriptname: Failed to $unzip ZIP file (<$filename>)! \n";
+			close XML;
 		}
 	} else {
 		warn "$scriptname: Could not find an <$filename>! \n";
