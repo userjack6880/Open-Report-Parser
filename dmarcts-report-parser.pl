@@ -128,6 +128,45 @@ $db_tx_support	= 1;
 # used in messages
 my $scriptname = 'dmarcts-report-parser.pl';
 
+# allowed values for the DB columns, also used to build the enum() in the
+# CREATE TABLE statements in checkDatabase(), in order defined here
+use constant ALLOWED_DISPOSITION => qw(
+	none
+	quarantine
+	reject
+	unknown
+);
+use constant ALLOWED_DKIM_ALIGN => qw(
+	fail
+	pass
+	unknown
+);
+use constant ALLOWED_SPF_ALIGN => qw(
+	fail
+	pass
+	unknown
+);
+use constant ALLOWED_DKIMRESULT => qw(
+	none
+	pass
+	fail
+	neutral
+	policy
+	temperror
+	permerror
+	unknown
+);
+use constant ALLOWED_SPFRESULT => qw(
+	none
+	neutral
+	pass
+	fail
+	softfail
+	temperror
+	permerror
+	unknown
+);
+
 # Load script configuration options from local config file. The file is expected
 # to be in the current working directory.
 my $conf_file = 'dmarcts-report-parser.conf';
@@ -828,9 +867,18 @@ sub storeXMLInDatabase {
 		#print "ip $ip\n";
 		my $count = $r{'row'}->{'count'};
 		my $disp = $r{'row'}->{'policy_evaluated'}->{'disposition'};
+		if ( ! grep { $_ eq $disp } ALLOWED_DISPOSITION ) {
+			$disp = 'unknown';
+		};
 		 # some reports don't have dkim/spf, "unknown" is default for these
-		my $dkim_align = $r{'row'}->{'policy_evaluated'}->{'dkim'} || "unknown";
-		my $spf_align = $r{'row'}->{'policy_evaluated'}->{'spf'} || "unknown";
+		my $dkim_align = $r{'row'}->{'policy_evaluated'}->{'dkim'};
+		if ( ! grep { $_ eq $dkim_align } ALLOWED_DKIM_ALIGN ) {
+			$dkim_align = 'unknown';
+		};
+		my $spf_align = $r{'row'}->{'policy_evaluated'}->{'spf'};
+		if ( ! grep { $_ eq $spf_align } ALLOWED_SPF_ALIGN ) {
+			$spf_align = 'unknown';
+		};
 
 		my $identifier_hfrom = $r{'identifiers'}->{'header_from'};
 
@@ -869,12 +917,15 @@ sub storeXMLInDatabase {
 						# If any of them are different, and don't contain a "pass" result, then $dkimresult will be empty
 							$dkimresult = $rp->[0]->{'result'};
 						} else {
-							$dkimresult = undef;
+							$dkimresult = 'unknown';
 						}
 					}
 				}
 			}
 		}
+		if ( ! defined($dkimresult) || ! grep { $_ eq $dkimresult } ALLOWED_DKIMRESULT ) {
+			$dkimresult = 'unknown';
+		};
 
 		$rp = $r{'auth_results'}->{'spf'};
 		if(ref $rp eq "HASH") {
@@ -899,12 +950,15 @@ sub storeXMLInDatabase {
 						# If any of them are different, and don't contain a "pass" result, then $spfresult will be empty
 							$spfresult = $rp->[0]->{'result'};
 						} else {
-							$spfresult = undef;
+							$spfresult = 'unknown';
 						}
 					}
 				}
 			}
 		}
+		if ( ! defined($spfresult) || ! grep { $_ eq $spfresult } ALLOWED_SPFRESULT ) {
+			$spfresult = 'unknown';
+		};
 
 		$rp = $r{'row'}->{'policy_evaluated'}->{'reason'};
 		if(ref $rp eq "HASH") {
@@ -1020,14 +1074,14 @@ sub checkDatabase {
 				"ip"			, "int(10) unsigned",
 				"ip6"			, "binary(16)",
 				"rcount"		, "int(10) unsigned NOT NULL",
-				"disposition"		, "enum('none','quarantine','reject')",
+				"disposition"		, "enum('" . join("','", ALLOWED_DISPOSITION) . "')",
 				"reason"		, "varchar(255)",
 				"dkimdomain"		, "varchar(255)",
-				"dkimresult"		, "enum('none','pass','fail','neutral','policy','temperror','permerror')",
+				"dkimresult"		, "enum('" . join("','", ALLOWED_DKIMRESULT) . "')",
 				"spfdomain"		, "varchar(255)",
-				"spfresult"		, "enum('none','neutral','pass','fail','softfail','temperror','permerror','unknown')",
-				"spf_align"		, "enum('fail','pass','unknown') NOT NULL",
-				"dkim_align"		, "enum('fail','pass','unknown') NOT NULL",
+				"spfresult"		, "enum('" . join("','", ALLOWED_SPFRESULT) . "')",
+				"spf_align"		, "enum('" . join("','", ALLOWED_SPF_ALIGN) . "') NOT NULL",
+				"dkim_align"		, "enum('" . join("','", ALLOWED_DKIM_ALIGN) . "') NOT NULL",
 				"identifier_hfrom"	, "varchar(255)",
 				],
 			additional_definitions 		=> "KEY serial (serial,ip), KEY serial6 (serial,ip6)",
