@@ -97,6 +97,7 @@ sub show_usage {
 	print "        -m : Read reports from mbox file(s) provided in PATH. \n";
 	print "        -e : Read reports from MIME email file(s) provided in PATH. \n";
 	print "        -x : Read reports from xml file(s) provided in PATH. \n";
+	print "        -z : Read reports from zip file(s) provided in PATH. \n";
 	print "\n";
 	print " The following optional options are allowed: \n";
 	print "        -d : Print debug info. \n";
