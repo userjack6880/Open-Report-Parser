@@ -83,19 +83,17 @@ use File::MimeInfo;
 use IO::Socket::SSL;
 #use IO::Socket::SSL 'debug3';
 
-
-
-################################################################################
-### usage ######################################################################
-################################################################################
+# -----------------------------------------------------------------------------
+# usage
+# -----------------------------------------------------------------------------
 
 sub show_usage {
   print "\n";
   print " Usage: \n";
-  print "    ./dmarcts-report-parser.pl [OPTIONS] [PATH] \n";
+  print "    ./report-parser.pl [OPTIONS] [PATH] \n";
   print "\n";
-  print " This script needs a configuration file called <dmarcts-report-parser.conf> in \n";
-  print " the current working directory, which defines a database server with credentials \n";
+  print " This script needs a configuration file called <report-parser.conf> in the\n";
+  print " current working directory, which defines a database server with credentials \n";
   print " and (if used) an IMAP server with credentials. \n";
   print "\n";
   print " Additionaly, one of the following source options must be provided: \n";
@@ -119,9 +117,9 @@ sub show_usage {
 
 
 
-################################################################################
-### main #######################################################################
-################################################################################
+# -----------------------------------------------------------------------------
+# main
+# -----------------------------------------------------------------------------
 
 # Define all possible configuration options.
 our ($debug, $delete_reports, $delete_failed, $reports_replace, $maxsize_xml, $compress_xml,
@@ -484,9 +482,9 @@ else { # TS_MESSAGE_FILE or TS_XML_FILE or TS_MBOX_FILE
 
 
 
-################################################################################
-### subroutines ################################################################
-################################################################################
+# -----------------------------------------------------------------------------
+# subroutines
+# -----------------------------------------------------------------------------
 
 sub moveToImapFolder {
   my $imap = $_[0];
@@ -574,7 +572,7 @@ sub processXML {
 }
 
 
-################################################################################
+# -----------------------------------------------------------------------------
 
 # Walk through a mime message and return a reference to the XML data containing
 # the fields of the first ZIPed XML file embedded into the message. The XML
@@ -727,7 +725,7 @@ sub getXMLFromMessage {
   return $xml;
 }
 
-################################################################################
+# -----------------------------------------------------------------------------
 
 sub getXMLFromZip {
   my $filename = $_[0];
@@ -798,7 +796,7 @@ sub getXMLFromZip {
   return $xml;
 }
 
-################################################################################
+# -----------------------------------------------------------------------------
 
 sub getXMLFromXMLString {
   my $raw_xml = $_[0];
@@ -816,7 +814,7 @@ sub getXMLFromXMLString {
 }
 
 
-################################################################################
+# -----------------------------------------------------------------------------
 
 # Extract fields from the XML report data hash and store them into the database.
 # return 1 when ok, 0, for serious error and -1 for minor errors
@@ -1107,7 +1105,7 @@ sub storeXMLInDatabase {
   return $res;
 }
 
-################################################################################
+# -----------------------------------------------------------------------------
 
 # Tries to roll back the transaction (if enabled).
 # If an error happens, warn the user, but continue execution
@@ -1122,7 +1120,7 @@ sub rollback {
   }
 }
 
-################################################################################
+# -----------------------------------------------------------------------------
 
 # Check, if the database contains needed tables and columns. The idea is, that
 # the user only has to create the database/database_user. All needed tables and
@@ -1200,7 +1198,7 @@ sub checkDatabase {
 }
 
 
-################################################################################
+# -----------------------------------------------------------------------------
 
 # Checks if the table exists in the database
 sub db_tbl_exists {
@@ -1210,7 +1208,7 @@ sub db_tbl_exists {
   return scalar @res > 0;
 }
 
-################################################################################
+# -----------------------------------------------------------------------------
 
 # Gets columns and their data types in a given table
 sub db_column_info {
