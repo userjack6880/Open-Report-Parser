@@ -156,7 +156,7 @@ $compress_xml = 0;
 $compress_json = 0;
 ```
 
-**Processing Failure Action***
+**Processing Failure Action**
 
 ```perl
 # if there was an error during file processing (message does not contain XML or ZIP parts, 
