@@ -110,6 +110,40 @@
       table_options           => "",
       indexes                 => [],
       },
+    "tls" => {
+      column_definitions      => [
+        "serial"              , "int"           , "unsigned NOT NULL AUTO_INCREMENT",
+        "mindate"             , "timestamp"     , "NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+        "maxdate"             , "timestamp"     , "NULL",
+        "domain"              , "varchar(255)"  , "NOT NULL",
+        "org"                 , "varchar(255)"  , "NOT NULL",
+        "reportid"            , "varchar(255)"  , "NOT NULL",
+        "email"               , "varchar(255)"  , "NULL",
+        "policy_mode"         , "varchar(20)"   , "NULL",
+        "summary_success"     , "int"           , "NULL",
+        "summary_failure"     , "int"           , "NULL",
+        "raw_json"            , "mediumtext"    , "",
+        ],
+      additional_definitions  => "PRIMARY KEY (serial), UNIQUE KEY domain(domain, reportid)",
+      table_options           => "ROW_FORMAT=COMPRESSED",
+      indexes                 => [],
+      },
+    "tlsrecord" => {
+      column_definitions      => [
+        "id"                  , "int"           , "unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY",
+        "serial"              , "int"           , "unsigned NOT NULL",
+        "send_ip"             , "int"           , "unsigned",
+        "send_ip6"            , "binary(16)"    , "",
+        "recv_ip"             , "int"           , "unsigned",
+        "recv_ip6"            , "binary(16)"    , "",
+        "recv_mx"             , "varchar(255)"  , "",
+        "type"                , "varchar(255)"  , "",
+        "count"               , "int"           , "unsigned NOT NULL",
+        ],
+      additional_definitions  => "KEY serial (serial, send_ip), KEY serial6 (serial, send_ip6)",
+      table_options           => "",
+      indexes                 => [],
+      }
     },
 
   add_column => sub {

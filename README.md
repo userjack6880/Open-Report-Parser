@@ -93,21 +93,26 @@ innodb_file_per_table	= true
 
 # Configuration Options
 
-**Debug Options**
+**Script Options**
 
 ```perl
 $debug = 0;
 $delete_reports = 0;
+#$dmarc_only = 0;                           
+# if set to 1, do not process tls reports, if set to -1 do not process
+# dmarc reports - defaults to 1 for legacy support
+# this is ignored for all methods except IMAP, use --tls to process
+# TLS reports for other methods
 ```
 
 **Database Options**
 
 ```perl
-#$dbtype = 'mysql';                         # Supported types - mysql, postgres - defaults to mysql if unset
+#$dbtype = 'mysql'; # Supported types - mysql, postgres - defaults to mysql if unset
 $dbname = 'dmarc';
 $dbuser = 'dmarc';
 $dbpass = 'password';
-$dbhost = 'dbhost';                         # Set the hostname if we can't connect to the local socket.
+#$dbhost = 'dbhost'; # Set the hostname if we can't connect to the local socket.
 $dbport = '3306';
 ```
 
@@ -118,18 +123,23 @@ $imapserver       = 'imap.server';
 $imapuser         = 'username';
 $imappass         = 'password';
 $imapport         = '143';
-$imapssl          = '0';                    # If set to 1, remember to change server port to 993 and disable imaptls.
-$imaptls          = '0';                    # Enabled as the default and best-practice.
-$tlsverify        = '0';                    # Enable verify server cert as the default and best-practice.
-$imapignoreerror  = '0';                    # set it to 1 if you see an "ERROR: message_string() 
-                                            # expected 119613 bytes but received 81873 you may 
-                                            # need the IgnoreSizeErrors option" because of malfunction
-                                            # imap server as MS Exchange 2007, ...
-$imapreadfolder   = 'dmarc';
+$imapssl          = '0'; # If set to 1, remember to change server port to 993 and disable imaptls.
+$imaptls          = '0';
+$tlsverify        = '0';
+$imapignoreerror  = '0'; # recommended if you use MS Exchange 2007, ...
 
-# If $imapmovefolder is set, processed IMAP messages will be moved (overruled by
+$imapdmarcfolder  = 'dmarc';
+$imaptlsfolder    = 'tls';
+
+# If $imapxxxproc is set, processed IMAP messages will be moved (overruled by
 # the --delete option!)
-$imapmovefolder = 'dmarc/processed';
+# $imapdmarcproc = 'dmarc.Processed';
+# $imaptlsproc   = 'tls.Processed';
+
+# If $imapxxxerr is set, IMAP messages that fail will be moved. If unset, failed messages
+# will move to $imapdmarcproc (if it is set). Overruled by the --delete option!
+# $imapdmarcerr = 'dmarc.notProcessed';
+# $imaptlserr   = 'tls.notProcessed';
 ```
 
 These settings are ignored when using the -m flag.
@@ -137,11 +147,13 @@ These settings are ignored when using the -m flag.
 **XML Storage Options**
 
 ```perl
-# maximum size of XML files to store in database, long files can cause transaction aborts
+# maximum size of XML/JSON files to store in database, long files can cause transaction aborts
 $maxsize_xml = 50000;
+$maxsize_json = 50000;
 
-# store XML as base64 encopded gzip in database (save space, harder usable)
+# store XML/JSON as base64 encopded gzip in database (save space, harder usable)
 $compress_xml = 0;
+$compress_json = 0;
 ```
 
 **Processing Failure Action***
@@ -161,7 +173,7 @@ Note: Be sure to use the proper hierarchy separator for your server in all folde
 # Usage
 
 ```
-./dmarcts-report-parser.pl [OPTIONS] [PATH]
+./report-parser.pl [OPTIONS] [PATH]
 ```
 
 PATH can be the filename of a single file or a list of files - wildcard expression are allowed.
@@ -171,27 +183,35 @@ PATH can be the filename of a single file or a list of files - wildcard expressi
 One of the following source options must be provided:
 
 ```
-      -i : Read reports from messages on IMAP server as defined in the config file.
-      -m : Read reports from mbox file(s) provided in PATH.
-      -e : Read reports from MIME email file(s) provided in PATH.
-      -x : Read reports from xml file(s) provided in PATH.
-      -z : Read reports from zip file(s) provided in PATH.
+        -i : Read reports from messages on IMAP server as defined in the 
+             config file. 
+        -m : Read reports from mbox file(s) provided in PATH. 
+        -e : Read reports from MIME email file(s) provided in PATH. 
+        -x : Read reports from xml file(s) provided in PATH. 
+        -j : Read reports from json files(s) provided in PATH. 
+        -z : Read reports from zip file(s) provided in PATH. 
 ```
 
 The following options are always allowed:
 
 ```
-      -d : Print debug info.
-      -r : Replace existing reports rather than failing.
---delete : Delete processed message files (the XML is stored in the database for later reference).
-  --info | Print out number of XML files or emails processed.
+        -d : Print debug info. 
+        -r : Replace existing reports rather than skipping them. 
+  --delete : Delete processed message files (the XML is stored in the 
+             database for later reference). 
+    --info : Print out number of XML files or emails processed. 
+     --tls : Force TLS-Only Mode. 
 ```
+
+Currently, processing of both DMARC and TLS reports during the same run is only supported from IMAP. All other sources will *always* default to DMARC reports unless the `--tls` flag is provided at runtime.
 
 # Latest Changes
 
-## 0-α1
-- Fork renamed
-- Incorporate changes made to original repository after fork ([commit 51ba1de](https://github.com/userjack6880/Open-Report-Parser/commit/51ba1de8521559647ebe4b8a1db291c26b572de4))
+## 0-α2
+- Fixed errors in previous release incorporating postgres support related to table creation.
+- Added MTA-TLS report support.
+- More useful debug output.
+- Code consolodation (eg, subroutine repetative code).
 
 # Tested System Configurations
 | OS          | Perl      | SQL             |
@@ -208,7 +228,8 @@ Support will be provided as outlined in the following schedule. For more details
 
 | Version                             | Support Level    | Released         | End of Support   | End of Life      |
 | ----------------------------------- | ---------------- | ---------------- | ---------------- | ---------------- |
-| Version 1 Alpha 1                   | Full Support     | TBD              | TBD              | TBD              |
+| Version 1 Alpha 2                   | Full Support     | 26 April 2023    | TBD              | TBD              |
+| Version 1 Alpha 1                   | Critical Support | 19 April 2023    | 26 April 2023    | TBD              |
 
 # Contributing
 
