@@ -140,7 +140,7 @@ $reports_replace = 0;
 
 # used in messages
 my $scriptname = 'Open Report Parser';
-my $version    = 'Version 0 Alpha 2';
+my $version    = 'Version 0 Alpha 3';
 
 # allowed values for the DB columns, also used to build the enum() in the
 # CREATE TABLE statements in checkDatabase(), in order defined here
@@ -295,6 +295,10 @@ if (exists $options{delete}) {$delete_reports = 1;}
 if (exists $options{info})   {$processInfo = 1;}
 if (exists $options{tls})    {$dmarc_only = -1;}
 
+# Cludgy, but it lets us preserve filename for dbx_postgres.pl
+my $dbitype = 'mysql';
+$dbitype = 'Pg' if $dbtype eq 'postgres';
+
 # Print info
 printInfo($scriptname."\n  $version");
 
@@ -346,7 +350,7 @@ my $dbx_return = do $dbx_file;
 die "$scriptname: couldn't load DB definition for type $dbtype: $@" if $@;
 die "$scriptname: couldn't load DB definition for type $dbtype: $!" unless defined $dbx_return;
 
-my $dbh = DBI->connect("DBI:$dbtype:database=$dbname;host=$dbhost;port=$dbport",
+my $dbh = DBI->connect("DBI:$dbitype:database=$dbname;host=$dbhost;port=$dbport",
                             $dbuser,
                             $dbpass)
 or die "$scriptname: Cannot connect to database\n";

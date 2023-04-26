@@ -8,7 +8,7 @@ A Perl based tool to parse DMARC reports, based on John Levine's [rddmarc](http:
 
 Open Report Parser is a fork of [techsneeze's dmarcts-report-parser](https://github.com/techsneeze/dmarcts-report-parser), and was forked to more closely match the needs of [Open DMARC Analyzer](https://github.com/userjack6880/Open-DMARC-Analyzer).
 
-Open Report Parser Version 0 Alpha 1 (0-α2) is an [Anomaly \<Codebase\>](https://systemanomaly.com/codebase) project by John Bradley (john@systemanomaly.com).
+Open Report Parser Version 0 Alpha 3 (0-α3) is an [Anomaly \<Codebase\>](https://systemanomaly.com/codebase) project by John Bradley (john@systemanomaly.com).
 
 # Minimum Requirements
 
@@ -207,11 +207,8 @@ Currently, processing of both DMARC and TLS reports during the same run is only 
 
 # Latest Changes
 
-## 0-α2
-- Fixed errors in previous release incorporating postgres support related to table creation.
-- Added MTA-TLS report support.
-- More useful debug output.
-- Code consolodation (eg, subroutine repetative code).
+## 0-α3
+- Postgres fixes.
 
 # Tested System Configurations
 | OS          | Perl      | SQL             |
@@ -228,8 +225,9 @@ Support will be provided as outlined in the following schedule. For more details
 
 | Version                             | Support Level    | Released         | End of Support   | End of Life      |
 | ----------------------------------- | ---------------- | ---------------- | ---------------- | ---------------- |
-| Version 1 Alpha 2                   | Full Support     | 26 April 2023    | TBD              | TBD              |
-| Version 1 Alpha 1                   | Critical Support | 19 April 2023    | 26 April 2023    | TBD              |
+| Version 1 Alpha 3                   | Full Support     | 27 April 2023    | TBD              | TBD              |
+| Version 1 Alpha 2                   | Critical Support | 26 April 2023    | 27 April 2023    | TBD              |
+| Version 1 Alpha 1                   | End of Life      | 19 April 2023    | 26 April 2023    | 27 April 2023    |
 
 # Contributing
 

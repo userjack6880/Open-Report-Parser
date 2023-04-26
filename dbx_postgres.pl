@@ -150,8 +150,8 @@
       additional_definitions  => "PRIMARY KEY (id)",
       table_options           => "",
       indexes                 => [
-        "CREATE INDEX tlsrecord_idx_serial ON tlsrecord (serial, ip);",
-        "CREATE INDEX tlsrecord_idx_serial6 ON tlsrecord (serial, ip6);",
+        "CREATE INDEX tlsrecord_idx_serial ON tlsrecord (serial, send_ip);",
+        "CREATE INDEX tlsrecord_idx_serial6 ON tlsrecord (serial, send_ip6);",
         ],
       }
     },
