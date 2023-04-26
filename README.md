@@ -214,6 +214,7 @@ Currently, processing of both DMARC and TLS reports during the same run is only 
 | OS          | Perl      | SQL             |
 | ----------- | --------- | --------------- |
 | Debian 11.6 | Perl 5.32 | MariaDB 10.5.18 |
+| Debian 11.6 | Perl 5.32 | PostgreSQL 13.9 |
 
 # Release Cycle and Versioning
 
