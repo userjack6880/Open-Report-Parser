@@ -8,7 +8,7 @@ A Perl based tool to parse DMARC reports, based on John Levine's [rddmarc](http:
 
 Open Report Parser is a fork of [techsneeze's dmarcts-report-parser](https://github.com/techsneeze/dmarcts-report-parser), and was forked to more closely match the needs of [Open DMARC Analyzer](https://github.com/userjack6880/Open-DMARC-Analyzer).
 
-Open Report Parser Version 0 Alpha 1 (0-α1) is an [Anomaly \<Codebase\>](https://systemanomaly.com/codebase) project by John Bradley (john@systemanomaly.com).
+Open Report Parser Version 0 Alpha 1 (0-α2) is an [Anomaly \<Codebase\>](https://systemanomaly.com/codebase) project by John Bradley (john@systemanomaly.com).
 
 # Minimum Requirements
 
