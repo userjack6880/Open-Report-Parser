@@ -115,6 +115,45 @@
         "CREATE INDEX rptrecord_idx_serial6 ON rptrecord (serial, ip6);",
         ],
       },
+    "tls" => {
+      column_definitions      => [
+        "serial"              , "bigint"                      , "GENERATED ALWAYS AS IDENTITY",
+        "mindate"             , "timestamp without time zone" , "NOT NULL",
+        "maxdate"             , "timestamp without time zone" , "NULL",
+        "domain"              , "character varying(255)"      , "NOT NULL",
+        "org"                 , "character varying(255)"      , "NOT NULL",
+        "reportid"            , "character varying(255)"      , "NOT NULL",
+        "email"               , "character varying(255)"      , "NULL",
+        "policy_mode"         , "character varying(20)"       , "NULL",
+        "summary_success"     , "integer"                     , "NULL",
+        "summary_failure"     , "integer"                     , "NULL",
+        "raw_json"            , "text"                        , "",
+        ],
+      additional_definitions  => "PRIMARY KEY (serial)",
+      table_options           => "",
+      indexes                 => [
+        "CREATE UNIQUE INDEX tls_uidx_domain ON tls (domain, reportid);"
+        ],
+      },
+    "tlsrecord" => {
+      column_definitions      => [
+        "id"                  , "bigint"                  , "GENERATED ALWAYS AS IDENTITY",
+        "serial"              , "bigint"                  , "NOT NULL",
+        "send_ip"             , "bigint"                  , "",
+        "send_ip6"            , "bytea"                   , "",
+        "recv_ip"             , "bigint"                  , "",
+        "recv_ip6"            , "bytea"                   , "",
+        "recv_mx"             , "character varying(255)"  , "",
+        "type"                , "character varying(255)"  , "",
+        "count"               , "integer"                 , "NOT NULL",
+        ],
+      additional_definitions  => "PRIMARY KEY (id)",
+      table_options           => "",
+      indexes                 => [
+        "CREATE INDEX tlsrecord_idx_serial ON tlsrecord (serial, ip);",
+        "CREATE INDEX tlsrecord_idx_serial6 ON tlsrecord (serial, ip6);",
+        ],
+      }
     },
 
   add_column => sub {
