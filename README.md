@@ -23,7 +23,7 @@ Open Report Parser Version 0 Alpha 3 (0-α3) is an [Anomaly \<Codebase\>](https:
 ```
 apt-get install libfile-mimeinfo-perl libmail-imapclient-perl libmime-tools-perl libxml-simple-perl \
 libio-socket-inet6-perl libio-socket-ip-perl libperlio-gzip-perl \
-libmail-mbox-messageparser-perl unzip
+libmail-mbox-messageparser-perl libwww-perl unzip
 ```
 
 - For MySQL: `libdbd-mysql-perl`
@@ -34,7 +34,7 @@ libmail-mbox-messageparser-perl unzip
 
 ```
 sudo dnf install perl-File-MimeInfo perl-Mail-IMAPClient perl-MIME-tools perl-XML-Simple perl-DBI \
-perl-Socket6 perl-PerlIO-gzip unzip
+perl-Socket6 perl-PerlIO-gzip perl-libwww-perl unzip
 ```
 
 - For MySQL: `perl-DBD-MySQL`
@@ -45,7 +45,7 @@ perl-Socket6 perl-PerlIO-gzip unzip
 ```
 yum install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 yum install perl-File-MimeInfo perl-Mail-IMAPClient perl-MIME-tools perl-XML-Simple perl-DBI \
-perl-Socket6 perl-PerlIO-gzip unzip perl-Mail-Mbox-MessageParser
+perl-Socket6 perl-PerlIO-gzip perl-libwww-perl unzip perl-Mail-Mbox-MessageParser
 ```
 
 - For MySQL: `perl-DBD-MySQL`
@@ -54,7 +54,7 @@ perl-Socket6 perl-PerlIO-gzip unzip perl-Mail-Mbox-MessageParser
 ## on FreeBSD (FreeBSD 11.4)
 
 ```
-sudo pkg install p5-File-MimeInfo p5-Mail-IMAPClient p5-MIME-tools p5-XML-Simple p5-DBI p5-Socket6 p5-PerlIO-gzip p5-Mail-Mbox-MessageParser unzip
+sudo pkg install p5-File-MimeInfo p5-Mail-IMAPClient p5-MIME-tools p5-XML-Simple p5-DBI p5-Socket6 p5-PerlIO-gzip p5-Mail-Mbox-MessageParser p5-libwww unzip
 ```
 
 - For MySQL: `p5-DBD-MySQL`
@@ -68,6 +68,7 @@ update-mime-database /usr/local/share/mime
 perl -MCPAN -e 'install Mail::IMAPClient'
 perl -MCPAN -e 'install Mail::Mbox::MessageParser'
 perl -MCPAN -e 'install File::MimeInfo'
+perl -MCPAN -e 'install LWP::UserAgent
 ```
 
 - For MySQL: `perl -MCPAN -e 'install DBD::mysql'`
@@ -128,7 +129,10 @@ $imaptls          = '0';
 $tlsverify        = '0';
 $imapignoreerror  = '0'; # recommended if you use MS Exchange 2007, ...
 #$imapauth        = 'simple'; # supported - simple, oauth2 - defaults to simple if unset
-#$oauth2token      = '';
+
+# see documentation for detailed setup
+#$oauthclientid   = ''; 
+#$oauthuri        = '';
 
 $imapdmarcfolder  = 'dmarc';
 $imaptlsfolder    = 'tls';
@@ -211,7 +215,7 @@ Currently, processing of both DMARC and TLS reports during the same run is only 
 
 ## 0-α3
 - Postgres fixes (and validation).
-- Oauth2 support.
+- Oauth2 support (tested with M365 only).
 
 # Tested System Configurations
 | OS          | Perl      | SQL             |
