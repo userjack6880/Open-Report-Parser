@@ -125,6 +125,7 @@ our ($debug, $delete_reports, $delete_failed, $reports_replace, $dmarc_only,
      $maxsize_xml, $compress_xml, $maxsize_json, $compress_json,
      $dbtype, $dbname, $dbuser, $dbpass, $dbhost, $dbport, $db_tx_support,
      $imapserver, $imapport, $imapuser, $imappass, $imapignoreerror, $imapssl, $imaptls, 
+     $imapauth, $oauth2token,
      $imapdmarcfolder, $imapdmarcproc, $imapdmarcerr, 
      $imaptlsfolder, $imaptlsproc, $imaptlserr,
      $imapopt, $tlsverify, $processInfo);
@@ -137,6 +138,7 @@ $dbhost          = 'localhost';
 $db_tx_support   = 1;
 $dmarc_only      = 1;
 $reports_replace = 0;
+$imapauth        = 'simple';
 
 # used in messages
 my $scriptname = 'Open Report Parser';
@@ -332,6 +334,8 @@ if ($debug) {
         "TLS Verify:      $tlsverify\n".
         "IMAP User:       $imapuser\n".
         "IMAP Ignore Err: $imapignoreerror\n".
+        "IMAP Auth:       $imapauth\n".
+        "OAuth2 Token:    $oauth2token\n".
         "DMARC Folders: \n".
         "   Reports:      $imapdmarcfolder\n"; 
   print "   Processed:    $imapdmarcproc\n" if defined($imapdmarcproc);
@@ -395,14 +399,24 @@ if ($reports_source == TS_IMAP) {
     Socketargs => $socketargs
   )
   # module uses eval, so we use $@ instead of $!
-  or die "$scriptname: IMAP Failure: $@";
+  or die "$scriptname: IMAP Failure: $@\n";
 
   # This connection is finished this way because of the tradgedy of exchange...
-  $imap->User($imapuser);
-  $imap->Password($imappass);
-  $imap->connect();
+  if ($imapauth eq 'simple') {
+    $imap->User($imapuser);
+    $imap->Password($imappass);
+    $imap->connect();
+  }
+  elsif ($imapauth eq 'oauth2') {
+    my $oauth_b64 = encode_base64("user=".$imapuser."\x01auth=Bearer ".$oauth2token."\x01\x01",'');
+    $imap->authenticate('XOAUTH2', $oauth_b64) 
+    or die "$scriptname: IMAP Failure: ".$imap->LastError."\n";
+  }
+  else {
+    die "$scriptname: unsupported authentication type\n";
+  }
 
-  # Ignore Size Errors if we're using Exchange
+  # Ignore Size Errors due to issues with Exchange
   $imap->Ignoresizeerrors($imapignoreerror);
 
   # Set $imap to UID mode, which will force imap functions to use/return
