@@ -84,7 +84,7 @@ $imaptls          = '0';
 $tlsverify        = '0';
 $imapignoreerror  = '0'; # recommended if you use MS Exchange 2007, ...
 #$imapauth        = 'simple'; # supported - simple, oauth2 - defaults to simple if unset
-$oauth2token      = '';
+#$oauth2token      = '';
 
 $imapdmarcfolder  = 'dmarc';
 $imaptlsfolder    = 'tls';

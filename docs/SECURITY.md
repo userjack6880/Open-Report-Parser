@@ -22,4 +22,4 @@ Open DMARC Analyzer Version Security Support
 | -------------------------- | --------- | ---------------- |
 | Version 0 Alpha 3          | YES       | TBD              |
 | Version 0 Alpha 2          | YES       | TBD              |
-| Version 0 Alpha 1          | YES       | 27 April 2023    |
+| Version 0 Alpha 1          | YES       |  |

@@ -127,6 +127,8 @@ $imapssl          = '0'; # If set to 1, remember to change server port to 993 an
 $imaptls          = '0';
 $tlsverify        = '0';
 $imapignoreerror  = '0'; # recommended if you use MS Exchange 2007, ...
+#$imapauth        = 'simple'; # supported - simple, oauth2 - defaults to simple if unset
+#$oauth2token      = '';
 
 $imapdmarcfolder  = 'dmarc';
 $imaptlsfolder    = 'tls';
@@ -208,7 +210,8 @@ Currently, processing of both DMARC and TLS reports during the same run is only 
 # Latest Changes
 
 ## 0-α3
-- Postgres fixes.
+- Postgres fixes (and validation).
+- Oauth2 support.
 
 # Tested System Configurations
 | OS          | Perl      | SQL             |
@@ -226,9 +229,9 @@ Support will be provided as outlined in the following schedule. For more details
 
 | Version                             | Support Level    | Released         | End of Support   | End of Life      |
 | ----------------------------------- | ---------------- | ---------------- | ---------------- | ---------------- |
-| Version 1 Alpha 3                   | Full Support     | 27 April 2023    | TBD              | TBD              |
-| Version 1 Alpha 2                   | Critical Support | 26 April 2023    | 27 April 2023    | TBD              |
-| Version 1 Alpha 1                   | End of Life      | 19 April 2023    | 26 April 2023    | 27 April 2023    |
+| Version 1 Alpha 3                   | Full Support     |  | TBD              | TBD              |
+| Version 1 Alpha 2                   | Critical Support | 26 April 2023    |  | TBD              |
+| Version 1 Alpha 1                   | End of Life      | 19 April 2023    | 26 April 2023    |  |
 
 # Contributing
 

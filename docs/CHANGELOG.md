@@ -1,7 +1,8 @@
 # Changelog
 
 ## 0-α3
-- Postgres fixes.
+- Postgres fixes (and validation).
+- Oauth2 support.
 
 ## 0-α2
 - Fixed errors in previous release incorporating postgres support related to table creation.
