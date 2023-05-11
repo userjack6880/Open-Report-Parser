@@ -48,7 +48,6 @@ sub get_oauth {
   # first check if there's a result and it's valid
   if ($result && $result->{valid} == 1) {
     # check to see if it's expired
-    print $result->{expire}." - ".time()."\n\n";
     if ($result->{expire} > time()) {
       return $result->{access_token};
     }
@@ -111,6 +110,7 @@ sub get_oauth {
 
   # if there is no refresh or valid token does not exist, get a new token
   else {
+    print "no token found, requesting\n";
     # setup the useragent
     my $ua = LWP::UserAgent->new(
       protocols_allowed => ['https'],
@@ -159,7 +159,7 @@ sub get_oauth {
           "User Code: $user_code\n";
     
     # count elapsed, we want to force a timeout regardless if we get a response
-    $elapsed = 0;
+    my $elapsed = 0;
     while ($elapsed < $expires_in) {
       $request->uri($oauthuri."token");
       $request->content(encode("UTF-8","grant_type=urn:ietf:params:oauth:grant-type:device_code&client_id=$oauthclientid&device_code=$device_code"));
@@ -199,13 +199,13 @@ sub get_oauth {
     }
     # if we get out of the loop and it didn't error, then we should have a token now
     # and we can save it to the database
-    $access_token   = $respData->{access_token};
-    $refresh_token  = $respData->{refresh_token};
-    $expires_in     = $respData->{expires_in};
+    my $access_token   = $respData->{access_token};
+    my $refresh_token  = $respData->{refresh_token};
+    my $expires_in     = $respData->{expires_in};
 
     my $sql = qq{INSERT INTO oauth (access_token, refresh_token, expire, valid)
                 VALUES (?,?,$dbx{epoch_to_timestamp_fn}(?),1)};
-    $token_expire = time()+$expires_in;
+    my $token_expire = time()+$expires_in;
     $dbh->do($sql, undef, $access_token, $refresh_token, $token_expire);
     if ($dbh->errstr) {
       warn "$scriptname: $org: $id: Cannot add OAuth to database.\n";

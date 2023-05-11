@@ -1,8 +1,8 @@
 # Changelog
 
 ## 0-α3
-- Postgres fixes (and validation).
-- Oauth2 support.
+- Postgres fixes (and validation). Fixes Issue #8.
+- Oauth2 support (tested with M365 only). Fixes Issue #9.
 
 ## 0-α2
 - Fixed errors in previous release incorporating postgres support related to table creation.
