@@ -38,7 +38,7 @@ use Time::Piece;
 our @EXPORT = qw( get_oauth );
 
 sub get_oauth {
-  my ($oauthuri, $oauthclientid, $dbh) = (@_);
+  my ($oauthuri, $oauthclientid, $dbh, $db_tx_support) = (@_);
 
   # check if valid oauth token exists
   my $sth = $dbh->prepare(qq{SELECT access_token, refresh_token, UNIX_TIMESTAMP(expire) AS expire, valid FROM oauth WHERE valid=1});
@@ -88,6 +88,14 @@ sub get_oauth {
         warn "$scriptname: $org: $id: Cannot invalidate OAuth tokens.\n";
         exit;
       }
+      else {
+        if ($db_tx_support) {
+          $dbh->commit;
+          if ($dbh->errstr) {
+            warn "$scriptname: $org: $id: Cannot commit transaction.\n";
+          }
+        }
+      }
 
       # throw the info back into the DB
       my $access_token  = $respData->{access_token};
@@ -101,6 +109,14 @@ sub get_oauth {
       if ($dbh->errstr) {
         warn "$scriptname: $org: $id: Cannot add OAuth to database.\n";
         exit;
+      }
+      else {
+        if ($db_tx_support) {
+          $dbh->commit;
+          if ($dbh->errstr) {
+            warn "$scriptname: $org: $id: Cannot commit transaction.\n";
+          }
+        }
       }
 
       # now we can return the current access token
@@ -187,7 +203,9 @@ sub get_oauth {
           exit;
         }
         else {
-          print "Other Error: ".$respData->{error}." - Exiting.\n";
+          print "Other Error: ".$respData->{error}." - Exiting.\n".
+                "Description: ".$respData->{error_description}."\n".
+                "Error URI:   ".$respData->{error_uri}."\n";
           exit;
         }
       }
@@ -204,16 +222,24 @@ sub get_oauth {
     my $expires_in     = $respData->{expires_in};
 
     my $sql = qq{INSERT INTO oauth (access_token, refresh_token, expire, valid)
-                VALUES (?,?,$dbx{epoch_to_timestamp_fn}(?),1)};
+                VALUES (?,?,FROM_UNIXTIME(?),1)};
     my $token_expire = time()+$expires_in;
     $dbh->do($sql, undef, $access_token, $refresh_token, $token_expire);
     if ($dbh->errstr) {
       warn "$scriptname: $org: $id: Cannot add OAuth to database.\n";
       exit;
     }
-  }
+    else {
+      if ($db_tx_support) {
+        $dbh->commit;
+        if ($dbh->errstr) {
+          warn "$scriptname: $org: $id: Cannot commit transaction.\n";
+        }
+      }
+    }
 
-  return $access_token;
+    return $access_token;
+  }
 }
 
 1;

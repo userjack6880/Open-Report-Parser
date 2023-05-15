@@ -415,7 +415,7 @@ if ($reports_source == TS_IMAP) {
   elsif ($imapauth eq 'oauth2') {
     printDebug("using oauth2");
     # get the bearer token
-    my $oauth2token = OAuth::get_oauth($oauthuri, $oauthclientid, $dbh);
+    my $oauth2token = OAuth::get_oauth($oauthuri, $oauthclientid, $dbh, $db_tx_support);
 
     # authenticate
     my $oauth_b64 = encode_base64("user=".$imapuser."\x01auth=Bearer ".$oauth2token."\x01\x01",'');

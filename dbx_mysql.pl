@@ -118,8 +118,8 @@
     "oauth" => {
       column_definitions      => [
         "id"                  , "int"           , "unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY",
-        "access_token"        , "varchar(255)"  , "",
-        "refresh_token"       , "varchar(255)"  , "",
+        "access_token"        , "varchar(4096)"  , "",
+        "refresh_token"       , "varchar(1024)"  , "",
         "expire"              , "timestamp"     , "NOT NULL",
         "valid"               , "int"           , "unsigned NOT NULL",
         ],
