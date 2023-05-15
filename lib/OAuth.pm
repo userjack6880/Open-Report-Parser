@@ -67,7 +67,7 @@ sub get_oauth {
           'Content-Type'   => 'application/x-www-form-urlencoded'
         ]
       );
-      my $refresh_token = $result->{request_token};
+      my $refresh_token = $result->{refresh_token};
       $request->content(encode("UTF-8","client_id=$oauthclientid&refresh_token=$refresh_token&grant_type=refresh_token"));
 
       my $response = $ua->request($request);
@@ -103,7 +103,7 @@ sub get_oauth {
       my $expires_in    = $respData->{expires_in};
 
       my $sql = qq{INSERT INTO oauth (access_token, refresh_token, expire, valid)
-                  VALUES (?,?,$dbx{epoch_to_timestamp_fn}(?),1)};
+                  VALUES (?,?,FROM_UNIXTIME(?),1)};
       $token_expire = time()+$expires_in;
       $dbh->do($sql, undef, $access_token, $refresh_token, $token_expire);
       if ($dbh->errstr) {
