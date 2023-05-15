@@ -38,7 +38,25 @@ use Time::Piece;
 our @EXPORT = qw( get_oauth );
 
 sub get_oauth {
-  my ($oauthuri, $oauthclientid, $dbh, $db_tx_support) = (@_);
+  my ($oauthuri, $oauthclientid, $dbh, $db_tx_support, $clear_token) = (@_);
+
+  # clear token if requested
+  if ($clear_token) {
+    my $sql = qq{DELETE FROM oauth};
+    $dbh->do($sql, undef);
+    if ($dbh->errstr) {
+      warn "$scriptname: $org: $id: Cannot invalidate OAuth tokens.\n";
+      exit;
+    }
+    else {
+      if ($db_tx_support) {
+        $dbh->commit;
+        if ($dbh->errstr) {
+          warn "$scriptname: $org: $id: Cannot commit transaction.\n";
+        }
+      }
+    }
+  }
 
   # check if valid oauth token exists
   my $sth = $dbh->prepare(qq{SELECT access_token, refresh_token, UNIX_TIMESTAMP(expire) AS expire, valid FROM oauth WHERE valid=1});
@@ -136,7 +154,7 @@ sub get_oauth {
     
     # if it's m365, we need to request offline_access too
     if ($oauthuri =~ m/microsoft/) {
-      $scope .= "%20offline_access";
+      $scope .= "%20offline_access%20https%3A%2F%2Foutlook.office.com%2F.default";
     }
 
     # send the device authorization request

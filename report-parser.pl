@@ -131,7 +131,8 @@ our ($debug, $delete_reports, $delete_failed, $reports_replace, $dmarc_only,
      $imapauth, $oauthclientid, $oauthuri,
      $imapdmarcfolder, $imapdmarcproc, $imapdmarcerr, 
      $imaptlsfolder, $imaptlsproc, $imaptlserr,
-     $tlsverify, $processInfo);
+     $tlsverify, $processInfo,
+     $clear_token);
 
 # defaults
 $maxsize_xml     = 50000;
@@ -142,6 +143,7 @@ $db_tx_support   = 1;
 $dmarc_only      = 1;
 $reports_replace = 0;
 $imapauth        = 'simple';
+$clear_token     = 0;
 
 # used in messages
 my $scriptname = 'Open Report Parser';
@@ -198,7 +200,7 @@ use constant { TS_IMAP => 0,
                TS_MBOX_FILE => 3, 
                TS_ZIP_FILE => 4, 
                TS_JSON_FILE => 5 };
-GetOptions( \%options, 'd', 'r', 'x', 'j', 'm', 'e', 'i', 'z', 'delete', 'info', 'c' => \$conf_file );
+GetOptions( \%options, 'd', 'r', 'x', 'j', 'm', 'e', 'i', 'z', 'delete', 'info', 'c' => \$conf_file, 'clear' );
 
 # locate conf file or die
 if ( -e $conf_file ) {
@@ -299,6 +301,7 @@ if (exists $options{d})      {$debug = 1;}
 if (exists $options{delete}) {$delete_reports = 1;}
 if (exists $options{info})   {$processInfo = 1;}
 if (exists $options{tls})    {$dmarc_only = -1;}
+if (exists $options{clear})  {$clear_token = 1;}
 
 # Cludgy, but it lets us preserve filename for dbx_postgres.pl
 my $dbitype = 'mysql';
@@ -415,7 +418,7 @@ if ($reports_source == TS_IMAP) {
   elsif ($imapauth eq 'oauth2') {
     printDebug("using oauth2");
     # get the bearer token
-    my $oauth2token = OAuth::get_oauth($oauthuri, $oauthclientid, $dbh, $db_tx_support);
+    my $oauth2token = OAuth::get_oauth($oauthuri, $oauthclientid, $dbh, $db_tx_support, $clear_token);
 
     # authenticate
     my $oauth_b64 = encode_base64("user=".$imapuser."\x01auth=Bearer ".$oauth2token."\x01\x01",'');
