@@ -148,7 +148,9 @@ $imaptlsfolder    = 'tls';
 # $imaptlserr   = 'tls.notProcessed';
 ```
 
-These settings are ignored when using the -m flag.
+These settings are ignored when using the -m flag. When using SSL, TLS needs to be disabled and the port used should be changed to 993. TLS Verify is ignored.
+
+Setting `$imapauth` to 'oauth2' enables OAuth2 authentication, and requires an initial dance to verify the application with your provider. Once this is done, it should be able to renew the token automatically on subsequent runs. Currently, only OAuth2 with M365 has been tested.
 
 **XML Storage Options**
 
