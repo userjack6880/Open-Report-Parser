@@ -131,7 +131,7 @@ our ($debug, $delete_reports, $delete_failed, $reports_replace, $dmarc_only,
      $imapauth, $oauthclientid, $oauthuri,
      $imapdmarcfolder, $imapdmarcproc, $imapdmarcerr, 
      $imaptlsfolder, $imaptlsproc, $imaptlserr,
-     $imapopt, $tlsverify, $processInfo);
+     $tlsverify, $processInfo);
 
 # defaults
 $maxsize_xml     = 50000;
@@ -378,11 +378,11 @@ if ($reports_source == TS_IMAP) {
   if ($imaptls == 1) {
     if ( $tlsverify == 0 ) {
       printDebug("use tls without verify servercert.");
-      $imapopt = [ SSL_verify_mode => SSL_VERIFY_NONE ];
+      $socketargs = [ SSL_verify_mode => SSL_VERIFY_NONE ];
     } 
     else {
       printDebug("use tls with verify servercert.");
-      $imapopt = [ SSL_verify_mode => SSL_VERIFY_PEER ];
+      $socketargs = [ SSL_verify_mode => SSL_VERIFY_PEER ];
     }
   # The whole point of setting this socket arg is so that we don't get the nasty warning
   } 
@@ -395,12 +395,12 @@ if ($reports_source == TS_IMAP) {
 
   # Setup connection to IMAP server.
   my $imap = Mail::IMAPClient->new(
-    Server     => $imapserver,
-    Port       => $imapport,
-    Ssl        => $imapssl,
-    Starttls   => $imapopt,
-    Debug      => $debug,
-    Socketargs => $socketargs
+    server     => $imapserver,
+    port       => $imapport,
+    ssl        => $imapssl,
+    starttls   => $imaptls,
+    debug      => $debug,
+    socketargs => $socketargs
   )
   # module uses eval, so we use $@ instead of $!
   or die "$scriptname: IMAP Failure: $@\n";
