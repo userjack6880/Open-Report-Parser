@@ -419,7 +419,7 @@ if ($reports_source == TS_IMAP) {
 
     # authenticate
     my $oauth_b64 = encode_base64("user=".$imapuser."\x01auth=Bearer ".$oauth2token."\x01\x01",'');
-    printDebug("AUTHENTICATE XOAUTH2 $oauth_b64, oauth token: $oauth2token");
+    printDebug("AUTHENTICATE XOAUTH2 $oauth_b64\n---\noauth token: $oauth2token");
     $imap->authenticate('XOAUTH2', $oauth_b64) 
     or die "$scriptname: IMAP Failure: ".$imap->LastError."\n";
   }
