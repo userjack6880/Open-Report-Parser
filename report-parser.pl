@@ -2,7 +2,7 @@
 
 # -----------------------------------------------------------------------------
 #
-# Open Report Parser - Open Source DMARC report parser
+# Open Report Parser - Open Source report parser
 # Copyright (C) 2023 John Bradley (userjack6880)
 # Copyright (C) 2016 TechSneeze.com
 # Copyright (C) 2012 John Bieling
@@ -84,6 +84,9 @@ use File::MimeInfo;
 use IO::Socket::SSL;
 #use IO::Socket::SSL 'debug3';
 
+use lib 'lib';
+use OAuth;
+
 # -----------------------------------------------------------------------------
 # usage
 # -----------------------------------------------------------------------------
@@ -125,9 +128,11 @@ our ($debug, $delete_reports, $delete_failed, $reports_replace, $dmarc_only,
      $maxsize_xml, $compress_xml, $maxsize_json, $compress_json,
      $dbtype, $dbname, $dbuser, $dbpass, $dbhost, $dbport, $db_tx_support,
      $imapserver, $imapport, $imapuser, $imappass, $imapignoreerror, $imapssl, $imaptls, 
+     $imapauth, $oauthclientid, $oauthuri,
      $imapdmarcfolder, $imapdmarcproc, $imapdmarcerr, 
      $imaptlsfolder, $imaptlsproc, $imaptlserr,
-     $imapopt, $tlsverify, $processInfo);
+     $tlsverify, $processInfo,
+     $clear_token);
 
 # defaults
 $maxsize_xml     = 50000;
@@ -137,10 +142,12 @@ $dbhost          = 'localhost';
 $db_tx_support   = 1;
 $dmarc_only      = 1;
 $reports_replace = 0;
+$imapauth        = 'simple';
+$clear_token     = 0;
 
 # used in messages
 my $scriptname = 'Open Report Parser';
-my $version    = 'Version 0 Alpha 2';
+my $version    = 'Version 0 Alpha 3';
 
 # allowed values for the DB columns, also used to build the enum() in the
 # CREATE TABLE statements in checkDatabase(), in order defined here
@@ -193,7 +200,7 @@ use constant { TS_IMAP => 0,
                TS_MBOX_FILE => 3, 
                TS_ZIP_FILE => 4, 
                TS_JSON_FILE => 5 };
-GetOptions( \%options, 'd', 'r', 'x', 'j', 'm', 'e', 'i', 'z', 'delete', 'info', 'c' => \$conf_file );
+GetOptions( \%options, 'd', 'r', 'x', 'j', 'm', 'e', 'i', 'z', 'delete', 'info', 'c' => \$conf_file, 'clear' );
 
 # locate conf file or die
 if ( -e $conf_file ) {
@@ -294,6 +301,11 @@ if (exists $options{d})      {$debug = 1;}
 if (exists $options{delete}) {$delete_reports = 1;}
 if (exists $options{info})   {$processInfo = 1;}
 if (exists $options{tls})    {$dmarc_only = -1;}
+if (exists $options{clear})  {$clear_token = 1;}
+
+# Cludgy, but it lets us preserve filename for dbx_postgres.pl
+my $dbitype = 'mysql';
+$dbitype = 'Pg' if $dbtype eq 'postgres';
 
 # Print info
 printInfo($scriptname."\n  $version");
@@ -304,38 +316,41 @@ if ($debug) {
         "-- Script Options --\n\n".
         "Report Source:   $reports_source\n".
         "(0: IMAP, 1: Message, 2: XML, 3: MBOX, 4: ZIP, 5: JSON)\n".
-        "Show Processed:  $processInfo\n".
-        "Delete Reports:  $delete_reports\n".
-        "Delete Failed:   $delete_failed\n".
-        "Replace Reports: $reports_replace\n".
-        "DMARC Only:      $dmarc_only\n".
+        "Show Processed:   $processInfo\n".
+        "Delete Reports:   $delete_reports\n".
+        "Delete Failed:    $delete_failed\n".
+        "Replace Reports:  $reports_replace\n".
+        "DMARC Only:       $dmarc_only\n".
         "(0: DMARC\\TLS, 1: DMARC Only, -1: TLS Only)\n\n".
         "-- Database Options --\n\n".
-        "DB Type:         $dbtype\n".
-        "DB Name:         $dbname\n".
-        "DB User:         $dbuser\n".
-        "DB Host/Port:    $dbhost:$dbport\n".
-        "DB TX Support:   $db_tx_support\n\n".
-        "Max XML Size:    $maxsize_xml\n".
-        "Max JSON Size:   $maxsize_json\n".
-        "Compress XML:    $compress_xml\n".
-        "Compress JSON:   $compress_json\n\n".
+        "DB Type:          $dbtype\n".
+        "DB Name:          $dbname\n".
+        "DB User:          $dbuser\n".
+        "DB Host/Port:     $dbhost:$dbport\n".
+        "DB TX Support:    $db_tx_support\n\n".
+        "Max XML Size:     $maxsize_xml\n".
+        "Max JSON Size:    $maxsize_json\n".
+        "Compress XML:     $compress_xml\n".
+        "Compress JSON:    $compress_json\n\n".
         "-- IMAP Options --\n\n".
-        "IMAP Server:     $imapserver\n".
-        "IMAP Port:       $imapport\n".
-        "TLS:             $imaptls\n".
-        "SSL:             $imapssl\n".
-        "TLS Verify:      $tlsverify\n".
-        "IMAP User:       $imapuser\n".
-        "IMAP Ignore Err: $imapignoreerror\n".
+        "IMAP Server:      $imapserver\n".
+        "IMAP Port:        $imapport\n".
+        "TLS:              $imaptls\n".
+        "SSL:              $imapssl\n".
+        "TLS Verify:       $tlsverify\n".
+        "IMAP User:        $imapuser\n".
+        "IMAP Ignore Err:  $imapignoreerror\n".
+        "IMAP Auth:        $imapauth\n".
+        "Oauth2 URI:       $oauthuri\n".
+        "OAuth2 Client ID: $oauthclientid\n".
         "DMARC Folders: \n".
-        "   Reports:      $imapdmarcfolder\n"; 
-  print "   Processed:    $imapdmarcproc\n" if defined($imapdmarcproc);
-  print "   Error:        $imapdmarcerr\n" if defined($imapdmarcerr);
+        "   Reports:       $imapdmarcfolder\n"; 
+  print "   Processed:     $imapdmarcproc\n" if defined($imapdmarcproc);
+  print "   Error:         $imapdmarcerr\n" if defined($imapdmarcerr);
   print "TLS Folders: \n".
-        "   Reports:      $imaptlsfolder\n";
-  print "   Processed:    $imaptlsproc\n" if defined($imaptlsproc);
-  print "   Error:        $imaptlserr\n" if defined($imaptlserr);
+        "   Reports:       $imaptlsfolder\n";
+  print "   Processed:     $imaptlsproc\n" if defined($imaptlsproc);
+  print "   Error:         $imaptlserr\n" if defined($imaptlserr);
   print "----\n\n";
 }
 
@@ -346,7 +361,7 @@ my $dbx_return = do $dbx_file;
 die "$scriptname: couldn't load DB definition for type $dbtype: $@" if $@;
 die "$scriptname: couldn't load DB definition for type $dbtype: $!" unless defined $dbx_return;
 
-my $dbh = DBI->connect("DBI:$dbtype:database=$dbname;host=$dbhost;port=$dbport",
+my $dbh = DBI->connect("DBI:$dbitype:database=$dbname;host=$dbhost;port=$dbport",
                             $dbuser,
                             $dbpass)
 or die "$scriptname: Cannot connect to database\n";
@@ -366,11 +381,11 @@ if ($reports_source == TS_IMAP) {
   if ($imaptls == 1) {
     if ( $tlsverify == 0 ) {
       printDebug("use tls without verify servercert.");
-      $imapopt = [ SSL_verify_mode => SSL_VERIFY_NONE ];
+      $socketargs = [ SSL_verify_mode => SSL_VERIFY_NONE ];
     } 
     else {
       printDebug("use tls with verify servercert.");
-      $imapopt = [ SSL_verify_mode => SSL_VERIFY_PEER ];
+      $socketargs = [ SSL_verify_mode => SSL_VERIFY_PEER ];
     }
   # The whole point of setting this socket arg is so that we don't get the nasty warning
   } 
@@ -383,22 +398,39 @@ if ($reports_source == TS_IMAP) {
 
   # Setup connection to IMAP server.
   my $imap = Mail::IMAPClient->new(
-    Server     => $imapserver,
-    Port       => $imapport,
-    Ssl        => $imapssl,
-    Starttls   => $imapopt,
-    Debug      => $debug,
-    Socketargs => $socketargs
+    server     => $imapserver,
+    port       => $imapport,
+    ssl        => $imapssl,
+    starttls   => $imaptls,
+    debug      => $debug,
+    socketargs => $socketargs
   )
   # module uses eval, so we use $@ instead of $!
-  or die "$scriptname: IMAP Failure: $@";
+  or die "$scriptname: IMAP Failure: $@\n";
 
   # This connection is finished this way because of the tradgedy of exchange...
-  $imap->User($imapuser);
-  $imap->Password($imappass);
-  $imap->connect();
+  if ($imapauth eq 'simple') {
+    printDebug("using simple auth");
+    $imap->User($imapuser);
+    $imap->Password($imappass);
+    $imap->connect();
+  }
+  elsif ($imapauth eq 'oauth2') {
+    printDebug("using oauth2");
+    # get the bearer token
+    my $oauth2token = OAuth::get_oauth($oauthuri, $oauthclientid, $dbh, $db_tx_support, $clear_token);
 
-  # Ignore Size Errors if we're using Exchange
+    # authenticate
+    my $oauth_b64 = encode_base64("user=".$imapuser."\x01auth=Bearer ".$oauth2token."\x01\x01",'');
+    printDebug("AUTHENTICATE XOAUTH2 $oauth_b64\n---\noauth token: $oauth2token");
+    $imap->authenticate('XOAUTH2', sub { return $oauth_b64 }) 
+    or die "$scriptname: IMAP Failure: ".$imap->LastError."\n";
+  }
+  else {
+    die "$scriptname: unsupported authentication type\n";
+  }
+
+  # Ignore Size Errors due to issues with Exchange
   $imap->Ignoresizeerrors($imapignoreerror);
 
   # Set $imap to UID mode, which will force imap functions to use/return
@@ -1662,6 +1694,9 @@ sub checkDatabase {
 
   # Create missing tables and missing columns.
   for my $table ( keys %{$tables} ) {
+    if ($imapauth eq 'simple') {
+      next;
+    }
 
     if (!db_tbl_exists($dbh, $table)) {
 

@@ -4,8 +4,9 @@ Due to the limited time available to developrs to maintain support, dates must b
 
 | Version                             | Support Level    | Released         | End of Support   | End of Life      |
 | ----------------------------------- | ---------------- | ---------------- | ---------------- | ---------------- |
-| Version 1 Alpha 2                   | Full Support     | 26 April 2023    | TBD              | TBD              |
-| Version 1 Alpha 1                   | Critical Support | 19 April 2023    | 26 April 2023    | TBD              |
+| Version 1 Alpha 3                   | Full Support     | 25 May 2023      | TBD              | TBD              |
+| Version 1 Alpha 2                   | Critical Support | 26 April 2023    | 25 May 2023      | TBD              |
+| Version 1 Alpha 1                   | End of Life      | 19 April 2023    | 26 April 2023    | 25 May 2023      |
 
 # Support Cycle
 
