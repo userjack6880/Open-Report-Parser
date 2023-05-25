@@ -217,14 +217,13 @@ Currently, processing of both DMARC and TLS reports during the same run is only 
 
 ## 0-α3
 - Postgres fixes (and validation). Fixes Issue #8.
-- Oauth2 support (tested with M365 only). Fixes Issue #9.
+- Initial Oauth2 Support code (untested).
 
 # Tested System Configurations
 | OS          | Perl      | SQL             | Source                          |
 | ----------- | --------- | --------------- | ------------------------------- |
 | Debian 11.6 | Perl 5.32 | MariaDB 10.5.18 | Postfix/Dovecot IMAP Basic Auth |
 | Debian 11.6 | Perl 5.32 | PostgreSQL 13.9 | Postfix/Dovecot IMAP Basic Auth |
-| RHEL 7 | Perl 5 | MariaDB | M365 Exchange IMAP w/Oauth2 |
 
 # Release Cycle and Versioning
 
@@ -236,9 +235,9 @@ Support will be provided as outlined in the following schedule. For more details
 
 | Version                             | Support Level    | Released         | End of Support   | End of Life      |
 | ----------------------------------- | ---------------- | ---------------- | ---------------- | ---------------- |
-| Version 1 Alpha 3                   | Full Support     |  | TBD              | TBD              |
-| Version 1 Alpha 2                   | Critical Support | 26 April 2023    |  | TBD              |
-| Version 1 Alpha 1                   | End of Life      | 19 April 2023    | 26 April 2023    |  |
+| Version 1 Alpha 3                   | Full Support     | 25 May 2023      | TBD              | TBD              |
+| Version 1 Alpha 2                   | Critical Support | 26 April 2023    | 25 May 2023      | TBD              |
+| Version 1 Alpha 1                   | End of Life      | 19 April 2023    | 26 April 2023    | 25 May 2023      |
 
 # Contributing
 
