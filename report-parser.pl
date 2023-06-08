@@ -147,7 +147,7 @@ $clear_token     = 0;
 
 # used in messages
 my $scriptname = 'Open Report Parser';
-my $version    = 'Version 0 Alpha 3';
+my $version    = 'Version 0 Alpha 4';
 
 # allowed values for the DB columns, also used to build the enum() in the
 # CREATE TABLE statements in checkDatabase(), in order defined here
@@ -1694,10 +1694,6 @@ sub checkDatabase {
 
   # Create missing tables and missing columns.
   for my $table ( keys %{$tables} ) {
-    if ($imapauth eq 'simple') {
-      next;
-    }
-
     if (!db_tbl_exists($dbh, $table)) {
 
       # Table does not exist, build CREATE TABLE cmd from tables hash.

@@ -8,12 +8,12 @@ A Perl based tool to parse DMARC reports, based on John Levine's [rddmarc](http:
 
 Open Report Parser is a fork of [techsneeze's dmarcts-report-parser](https://github.com/techsneeze/dmarcts-report-parser), and was forked to more closely match the needs of [Open DMARC Analyzer](https://github.com/userjack6880/Open-DMARC-Analyzer).
 
-Open Report Parser Version 0 Alpha 3 (0-α3) is an [Anomaly \<Codebase\>](https://systemanomaly.com/codebase) project by John Bradley (john@systemanomaly.com).
+Open Report Parser Version 0 Alpha 4 (0-α4) is an [Anomaly \<Codebase\>](https://systemanomaly.com/codebase) project by John Bradley (john@systemanomaly.com).
 
 # Minimum Requirements
 
 - Perl 5
-- MySQl 15.1 or equivalent
+- MariaDB 10.5 or equivalent
 - PostgreSQL 13.9
 
 # Dependencies
@@ -28,7 +28,7 @@ libmail-mbox-messageparser-perl libwww-perl unzip
 
 - For MySQL: `libdbd-mysql-perl`
 - For PostgreSQL: `libdbd-pg-perl`
-
+- For Oauth2: `liblwp-protocol-https-perl libencode-perl libtime-piece-mysql-perl`
 
 ## on Fedora (Fedora 23)
 
@@ -39,6 +39,7 @@ perl-Socket6 perl-PerlIO-gzip perl-libwww-perl unzip
 
 - For MySQL: `perl-DBD-MySQL`
 - For PostgreSQL: `perl-DBD-Pg`
+- For Oauth2: `perl-LWP-Protocol-https perl-Encode perl-Time-Piece-MySQL`
 
 ## on CentOS (CentOS 7)
 
@@ -50,6 +51,7 @@ perl-Socket6 perl-PerlIO-gzip perl-libwww-perl unzip perl-Mail-Mbox-MessageParse
 
 - For MySQL: `perl-DBD-MySQL`
 - For PostgreSQL: `perl-DBD-Pg`
+- For Oauth2: `perl-LWP-Protocol-https perl-Encode perl-Time-Piece-MySQL`
 
 ## on FreeBSD (FreeBSD 11.4)
 
@@ -59,6 +61,7 @@ sudo pkg install p5-File-MimeInfo p5-Mail-IMAPClient p5-MIME-tools p5-XML-Simple
 
 - For MySQL: `p5-DBD-MySQL`
 - For PostgreSQL: `p5-DBD-Pg`
+- For Oauth2: `p5-LWP-Protocol-https p5-Encode p5-Time-Piece-MySQL`
 
 ## on macOS (macOS 10.13)
 
@@ -73,6 +76,12 @@ perl -MCPAN -e 'install LWP::UserAgent
 
 - For MySQL: `perl -MCPAN -e 'install DBD::mysql'`
 - For PostgreSQL: `perl -MCPAN -e 'install DBD::pg'`
+- For Oauth2:
+```
+perl -MCPAN -e 'install LWP::Protocol::https'
+perl -MCPAN -e 'install Encode'
+perl -MCPAN -e 'install Time::Piece'
+```
 
 # Setting up Open Report Parser
 
@@ -215,9 +224,9 @@ Currently, processing of both DMARC and TLS reports during the same run is only 
 
 # Latest Changes
 
-## 0-α3
-- Postgres fixes (and validation). Fixes Issue #8.
-- Initial Oauth2 Support code (untested).
+## 0-α4
+- Fixed Issue #8 again - some errornous code was introduced at some point that skips DB checks if not using Oauth2.
+- Updated documentation to fix minimum requirements regarding MariaDB vs MySQL (initially discovered with Open Report Analyzer).
 
 # Tested System Configurations
 | OS          | Perl      | SQL             | Source                          |
@@ -235,9 +244,9 @@ Support will be provided as outlined in the following schedule. For more details
 
 | Version                             | Support Level    | Released         | End of Support   | End of Life      |
 | ----------------------------------- | ---------------- | ---------------- | ---------------- | ---------------- |
-| Version 1 Alpha 3                   | Full Support     | 25 May 2023      | TBD              | TBD              |
-| Version 1 Alpha 2                   | Critical Support | 26 April 2023    | 25 May 2023      | TBD              |
-| Version 1 Alpha 1                   | End of Life      | 19 April 2023    | 26 April 2023    | 25 May 2023      |
+| Version 1 Alpha 4                   | Full Support     | 8 June 2023      | TBD              | TBD              |
+| Version 1 Alpha 3                   | Critical Support | 25 May 2023      | 8 June 2023      | TBD              |
+| Version 1 Alpha 2                   | End of LIfe      | 26 April 2023    | 25 May 2023      | 8 June 2023      |
 
 # Contributing
 
