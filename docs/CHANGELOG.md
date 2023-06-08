@@ -1,5 +1,10 @@
 # Changelog
 
+## 0-α4
+- Fixed Issue #8 again - some errornous code was introduced at some point that skips DB checks if not using Oauth2.
+- Further Oauth2 fixes implemented. Still requires more testing.
+- Updated documentation to fix minimum requirements regarding MariaDB vs MySQL (initially discovered with Open Report Analyzer).
+
 ## 0-α3
 - Postgres fixes (and validation). Fixes Issue #8.
 - Initial Oauth2 Support code (untested).
