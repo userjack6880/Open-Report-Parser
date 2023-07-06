@@ -224,9 +224,9 @@ Currently, processing of both DMARC and TLS reports during the same run is only 
 
 # Latest Changes
 
-## 0-α4
-- Fixed Issue #8 again - some errornous code was introduced at some point that skips DB checks if not using Oauth2.
-- Updated documentation to fix minimum requirements regarding MariaDB vs MySQL (initially discovered with Open Report Analyzer).
+## 0-α5
+- Fixed an issue with undefined variables discovered with Issue #12.
+- Fixed an issue with mimecast improperly setting mime type outlined in Issue #12.
 
 # Tested System Configurations
 | OS          | Perl      | SQL             | Source                          |
@@ -244,9 +244,9 @@ Support will be provided as outlined in the following schedule. For more details
 
 | Version                             | Support Level    | Released         | End of Support   | End of Life      |
 | ----------------------------------- | ---------------- | ---------------- | ---------------- | ---------------- |
-| Version 1 Alpha 4                   | Full Support     | 8 June 2023      | TBD              | TBD              |
-| Version 1 Alpha 3                   | Critical Support | 25 May 2023      | 8 June 2023      | TBD              |
-| Version 1 Alpha 2                   | End of LIfe      | 26 April 2023    | 25 May 2023      | 8 June 2023      |
+| Version 1 Alpha 5                   | Full Support     | 6 July 2023      | TBD              | TBD              |
+| Version 1 Alpha 4                   | Critical Support | 8 June 2023      | 6 July 2023      | TBD              |
+| Version 1 Alpha 3                   | End of Life      | 25 May 2023      | 8 June 2023      | 6 July 2023      |
 
 # Contributing
 

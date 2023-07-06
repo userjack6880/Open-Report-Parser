@@ -898,7 +898,31 @@ sub getXMLFromZip {
     my $unzip = "";
     if ($isgzip) {
       open(XML, "<:gzip", $filename)
-      or $unzip = "ungzip";
+      or $unzip = "gzip";
+
+      # check to see if the mimetype was incorrectly set to gzip *cough mimecast*
+      if ($unzip eq "gzip") {
+        printDebug("gzip failed, checking if incorrect mime type");
+        # incorrect mimetype with incorrect file extension seems to manifest as a .dat
+        # so let's check for that
+        my $ext = '';
+        if ($filename =~ /\.([^.]+)$/) {
+          print "extension: $1" if $debug;
+          $ext = $1;
+        }
+        else {
+          warn "$scriptname: Could not find extension for (<$filename>)! \n";
+        }
+
+        # if it's a dat file, then run this process again, but with $isgzip set to 0
+        if ($ext eq "dat") {
+          printDebug("Trying again using unzip");
+          $xml = getXMLFromZip($filename,0);
+
+          # if it fails again, it'll warn, if not, it'll return the correct xml
+          return $xml;
+        }
+      }
     } 
     else {
       open(XML, "-|", "unzip", "-p", $filename)
@@ -1422,7 +1446,31 @@ sub getJSONFromZip {
     my $unzip = "";
     if ($isgzip) {
       open(JSON, "<:gzip", $filename)
-      or $unzip = "ungzip";
+      or $unzip = "gzip";
+
+      # check to see if the mimetype was incorrectly set to gzip *cough mimecast*
+      if ($unzip eq "gzip") {
+        printDebug("gzip failed, checking if incorrect mime type");
+        # incorrect mimetype with incorrect file extension seems to manifest as a .dat
+        # so let's check for that
+        my $ext = '';
+        if ($filename =~ /\.([^.]+)$/) {
+          print "extension: $1" if $debug;
+          $ext = $1;
+        }
+        else {
+          warn "$scriptname: Could not find extension for (<$filename>)! \n";
+        }
+
+        # if it's a dat file, then run this process again, but with $isgzip set to 0
+        if ($ext eq "dat") {
+          printDebug("Trying again using unzip");
+          $xml = getXMLFromZip($filename,0);
+
+          # if it fails again, it'll warn, if not, it'll return the correct xml
+          return $xml;
+        }
+      }
     } 
     else {
       open(JSON, "-|", "unzip", "-p", $filename)

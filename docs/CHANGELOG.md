@@ -1,5 +1,9 @@
 # Changelog
 
+## 0-α5
+- Fixed an issue with undefined variables discovered with Issue #12.
+- Fixed an issue with mimecast improperly setting mime type outlined in Issue #12.
+
 ## 0-α4
 - Fixed Issue #8 again - some errornous code was introduced at some point that skips DB checks if not using Oauth2.
 - Updated documentation to fix minimum requirements regarding MariaDB vs MySQL (initially discovered with Open Report Analyzer).
