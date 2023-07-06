@@ -144,10 +144,13 @@ $dmarc_only      = 1;
 $reports_replace = 0;
 $imapauth        = 'simple';
 $clear_token     = 0;
+$processInfo     = 0;
+$oauthuri        = '';
+$oauthclientid   = '';
 
 # used in messages
 my $scriptname = 'Open Report Parser';
-my $version    = 'Version 0 Alpha 4';
+my $version    = 'Version 0 Alpha 5';
 
 # allowed values for the DB columns, also used to build the enum() in the
 # CREATE TABLE statements in checkDatabase(), in order defined here
