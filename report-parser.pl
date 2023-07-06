@@ -1465,10 +1465,10 @@ sub getJSONFromZip {
         # if it's a dat file, then run this process again, but with $isgzip set to 0
         if ($ext eq "dat") {
           printDebug("Trying again using unzip");
-          $xml = getXMLFromZip($filename,0);
+          $json = getJSONFromZip($filename,0);
 
           # if it fails again, it'll warn, if not, it'll return the correct xml
-          return $xml;
+          return $json;
         }
       }
     } 
