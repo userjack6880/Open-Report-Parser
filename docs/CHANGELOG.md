@@ -1,5 +1,8 @@
 # Changelog
 
+## 0-α6
+- Updated an issue where a failed IMAP connection fails silently. Updated appropriate line to now complain.
+
 ## 0-α5
 - Fixed an issue with undefined variables discovered with Issue #12.
 - Fixed an issue with mimecast improperly setting mime type outlined in Issue #12.

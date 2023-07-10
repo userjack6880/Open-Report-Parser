@@ -416,7 +416,7 @@ if ($reports_source == TS_IMAP) {
     printDebug("using simple auth");
     $imap->User($imapuser);
     $imap->Password($imappass);
-    $imap->connect();
+    $imap->connect() or die "$scriptname: Could not connect: $@";
   }
   elsif ($imapauth eq 'oauth2') {
     printDebug("using oauth2");

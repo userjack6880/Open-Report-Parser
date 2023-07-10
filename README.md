@@ -8,7 +8,7 @@ A Perl based tool to parse DMARC reports, based on John Levine's [rddmarc](http:
 
 Open Report Parser is a fork of [techsneeze's dmarcts-report-parser](https://github.com/techsneeze/dmarcts-report-parser), and was forked to more closely match the needs of [Open DMARC Analyzer](https://github.com/userjack6880/Open-DMARC-Analyzer).
 
-Open Report Parser Version 0 Alpha 5 (0-α5) is an [Anomaly \<Codebase\>](https://systemanomaly.com/codebase) project by John Bradley (john@systemanomaly.com).
+Open Report Parser Version 0 Alpha 6 (0-α6) is an [Anomaly \<Codebase\>](https://systemanomaly.com/codebase) project by John Bradley (john@systemanomaly.com).
 
 # Minimum Requirements
 
@@ -224,9 +224,8 @@ Currently, processing of both DMARC and TLS reports during the same run is only 
 
 # Latest Changes
 
-## 0-α5
-- Fixed an issue with undefined variables discovered with Issue #12.
-- Fixed an issue with mimecast improperly setting mime type outlined in Issue #12.
+## 0-α6
+- Updated an issue where a failed IMAP connection fails silently. Updated appropriate line to now complain.
 
 # Tested System Configurations
 | OS          | Perl      | SQL             | Source                          |
