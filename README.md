@@ -8,7 +8,7 @@ A Perl based tool to parse DMARC reports, based on John Levine's [rddmarc](http:
 
 Open Report Parser is a fork of [techsneeze's dmarcts-report-parser](https://github.com/techsneeze/dmarcts-report-parser), and was forked to more closely match the needs of [Open DMARC Analyzer](https://github.com/userjack6880/Open-DMARC-Analyzer).
 
-Open Report Parser Version 0 Alpha 4 (0-α4) is an [Anomaly \<Codebase\>](https://systemanomaly.com/codebase) project by John Bradley (john@systemanomaly.com).
+Open Report Parser Version 0 Alpha 5 (0-α5) is an [Anomaly \<Codebase\>](https://systemanomaly.com/codebase) project by John Bradley (john@systemanomaly.com).
 
 # Minimum Requirements
 
@@ -244,9 +244,9 @@ Support will be provided as outlined in the following schedule. For more details
 
 | Version                             | Support Level    | Released         | End of Support   | End of Life      |
 | ----------------------------------- | ---------------- | ---------------- | ---------------- | ---------------- |
-| Version 1 Alpha 5                   | Full Support     | 6 July 2023      | TBD              | TBD              |
-| Version 1 Alpha 4                   | Critical Support | 8 June 2023      | 6 July 2023      | TBD              |
-| Version 1 Alpha 3                   | End of Life      | 25 May 2023      | 8 June 2023      | 6 July 2023      |
+| Version 1 Alpha 5                   | Full Support     | 10 July 2023     | TBD              | TBD              |
+| Version 1 Alpha 4                   | Critical Support | 8 June 2023      | 10 July 2023     | TBD              |
+| Version 1 Alpha 3                   | End of Life      | 25 May 2023      | 8 June 2023      | 10 July 2023     |
 
 # Contributing
 

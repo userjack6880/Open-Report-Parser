@@ -994,10 +994,10 @@ sub storeXMLInDatabase {
   my $policy_aspf  = undef;
   my $policy_p     = undef;
   my $policy_sp    = undef;
-  my $policy_pct     = undef;
+  my $policy_pct   = undef;
  
   if (ref $xml->{'policy_published'} eq "HASH") {
-    $domain       =  $xml->{'policy_published'}->{'domain'};
+    $domain       = $xml->{'policy_published'}->{'domain'};
     $policy_adkim = $xml->{'policy_published'}->{'adkim'};
     $policy_aspf  = $xml->{'policy_published'}->{'aspf'};
     $policy_p     = $xml->{'policy_published'}->{'p'};
@@ -1005,7 +1005,7 @@ sub storeXMLInDatabase {
     $policy_pct   = $xml->{'policy_published'}->{'pct'};
   } 
   else {
-    $domain       =  $xml->{'policy_published'}[0]->{'domain'};
+    $domain       = $xml->{'policy_published'}[0]->{'domain'};
     $policy_adkim = $xml->{'policy_published'}[0]->{'adkim'};
     $policy_aspf  = $xml->{'policy_published'}[0]->{'aspf'};
     $policy_p     = $xml->{'policy_published'}[0]->{'p'};
