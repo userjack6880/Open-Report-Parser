@@ -144,10 +144,13 @@ $dmarc_only      = 1;
 $reports_replace = 0;
 $imapauth        = 'simple';
 $clear_token     = 0;
+$processInfo     = 0;
+$oauthuri        = '';
+$oauthclientid   = '';
 
 # used in messages
 my $scriptname = 'Open Report Parser';
-my $version    = 'Version 0 Alpha 4';
+my $version    = 'Version 0 Alpha 5';
 
 # allowed values for the DB columns, also used to build the enum() in the
 # CREATE TABLE statements in checkDatabase(), in order defined here
@@ -895,7 +898,31 @@ sub getXMLFromZip {
     my $unzip = "";
     if ($isgzip) {
       open(XML, "<:gzip", $filename)
-      or $unzip = "ungzip";
+      or $unzip = "gzip";
+
+      # check to see if the mimetype was incorrectly set to gzip *cough mimecast*
+      if ($unzip eq "gzip") {
+        printDebug("gzip failed, checking if incorrect mime type");
+        # incorrect mimetype with incorrect file extension seems to manifest as a .dat
+        # so let's check for that
+        my $ext = '';
+        if ($filename =~ /\.([^.]+)$/) {
+          print "extension: $1" if $debug;
+          $ext = $1;
+        }
+        else {
+          warn "$scriptname: Could not find extension for (<$filename>)! \n";
+        }
+
+        # if it's a dat file, then run this process again, but with $isgzip set to 0
+        if ($ext eq "dat") {
+          printDebug("Trying again using unzip");
+          $xml = getXMLFromZip($filename,0);
+
+          # if it fails again, it'll warn, if not, it'll return the correct xml
+          return $xml;
+        }
+      }
     } 
     else {
       open(XML, "-|", "unzip", "-p", $filename)
@@ -967,10 +994,10 @@ sub storeXMLInDatabase {
   my $policy_aspf  = undef;
   my $policy_p     = undef;
   my $policy_sp    = undef;
-  my $policy_pct     = undef;
+  my $policy_pct   = undef;
  
   if (ref $xml->{'policy_published'} eq "HASH") {
-    $domain       =  $xml->{'policy_published'}->{'domain'};
+    $domain       = $xml->{'policy_published'}->{'domain'};
     $policy_adkim = $xml->{'policy_published'}->{'adkim'};
     $policy_aspf  = $xml->{'policy_published'}->{'aspf'};
     $policy_p     = $xml->{'policy_published'}->{'p'};
@@ -978,7 +1005,7 @@ sub storeXMLInDatabase {
     $policy_pct   = $xml->{'policy_published'}->{'pct'};
   } 
   else {
-    $domain       =  $xml->{'policy_published'}[0]->{'domain'};
+    $domain       = $xml->{'policy_published'}[0]->{'domain'};
     $policy_adkim = $xml->{'policy_published'}[0]->{'adkim'};
     $policy_aspf  = $xml->{'policy_published'}[0]->{'aspf'};
     $policy_p     = $xml->{'policy_published'}[0]->{'p'};
@@ -1419,7 +1446,31 @@ sub getJSONFromZip {
     my $unzip = "";
     if ($isgzip) {
       open(JSON, "<:gzip", $filename)
-      or $unzip = "ungzip";
+      or $unzip = "gzip";
+
+      # check to see if the mimetype was incorrectly set to gzip *cough mimecast*
+      if ($unzip eq "gzip") {
+        printDebug("gzip failed, checking if incorrect mime type");
+        # incorrect mimetype with incorrect file extension seems to manifest as a .dat
+        # so let's check for that
+        my $ext = '';
+        if ($filename =~ /\.([^.]+)$/) {
+          print "extension: $1" if $debug;
+          $ext = $1;
+        }
+        else {
+          warn "$scriptname: Could not find extension for (<$filename>)! \n";
+        }
+
+        # if it's a dat file, then run this process again, but with $isgzip set to 0
+        if ($ext eq "dat") {
+          printDebug("Trying again using unzip");
+          $json = getJSONFromZip($filename,0);
+
+          # if it fails again, it'll warn, if not, it'll return the correct xml
+          return $json;
+        }
+      }
     } 
     else {
       open(JSON, "-|", "unzip", "-p", $filename)
