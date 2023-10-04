@@ -23,7 +23,7 @@ Open Report Parser Version 0 Alpha 5 (0-α5) is an [Anomaly \<Codebase\>](https:
 ```
 apt-get install libfile-mimeinfo-perl libmail-imapclient-perl libmime-tools-perl libxml-simple-perl \
 libio-socket-inet6-perl libio-socket-ip-perl libperlio-gzip-perl \
-libmail-mbox-messageparser-perl libwww-perl unzip
+libmail-mbox-messageparser-perl libwww-perl libjson-perl unzip
 ```
 
 - For MySQL: `libdbd-mysql-perl`
