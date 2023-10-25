@@ -17,4 +17,5 @@ WORKDIR /usr/src/parser
 RUN echo "0 */1 * * * root perl /usr/src/parser/report-parser.pl -i > /proc/1/fd/1 2>&1" >> /etc/crontab
 
 # Run the tool then start cron
-ENTRYPOINT ["/bin/sh", "-c" , "perl /usr/src/parser/report-parser.pl -i && cron -f"]
+ENTRYPOINT ["/usr/src/parser/run.docker.sh"]
+CMD ["-i"]
