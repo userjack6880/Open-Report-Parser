@@ -4,7 +4,7 @@ FROM debian:bookworm-slim
 # Core dependencies, Database dependencies, Oauth dependencies and container depenencies (cron)
 RUN apt-get update -y \
     && apt-get install -y perl unzip cron \
-        libfile-mimeinfo-perl libmail-imapclient-perl libmime-tools-perl libxml-simple-perl libio-socket-inet6-perl libio-socket-ip-perl libperlio-gzip-perl libmail-mbox-messageparser-perl libwww-perl \
+        libfile-mimeinfo-perl libmail-imapclient-perl libmime-tools-perl libxml-simple-perl libio-socket-inet6-perl libio-socket-ip-perl libperlio-gzip-perl libmail-mbox-messageparser-perl libwww-perl libjson-perl \
         libdbd-mysql-perl libdbd-pg-perl \ 
         liblwp-protocol-https-perl libencode-perl libtime-piece-mysql-perl
 
