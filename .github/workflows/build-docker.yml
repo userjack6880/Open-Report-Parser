@@ -6,8 +6,9 @@ on:
     branches:
       - 'main'
     paths:
-      - '.github/workflows/build-docker.yml'
+      - '**'
       - '!.github/**'
+      - '.github/workflows/build-docker.yml'
       - '!docs/**'
       - '!README.md'
       - '!LICENSE'
