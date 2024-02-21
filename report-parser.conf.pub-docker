@@ -1,0 +1,96 @@
+# -----------------------------------------------------------------------------
+#
+# Open Report Parser - Open Source report parser
+# Copyright (C) 2023 John Bradley (userjack6880)
+# Copyright (C) 2016 TechSneeze.com
+# Copyright (C) 2012 John Bieling
+#
+# report-parser.conf
+#   configuration file
+#
+# Available at: https://github.com/userjack6880/Open-Report-Parser
+#
+# -----------------------------------------------------------------------------
+#
+#  This file is part of Open Report Parser.
+#
+#  Open Report Parser is free software: you can redistribute it and/or modify it under
+#  the terms of the GNU General Public License as published by the Free Software 
+#  Foundation, either version 3 of the License, or (at your option) any later 
+#  version.
+#
+#  This program is distributed in the hope that it will be useful, but WITHOUT ANY 
+#  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+#  PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License along with 
+#  this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# -----------------------------------------------------------------------------
+
+# If IMAP access is not used, config options starting with $imap do not need to
+# be set and are ignored.
+
+$debug = $ENV{DEBUG} || 0;
+$delete_reports = $ENV{DELETE_REPORTS} || 0;
+#$dmarc_only = $ENV{DMARC_ONLY} || 0;                           
+# if set to 1, do not process tls reports, if set to -1 do not process
+# dmarc reports - defaults to 1 for legacy support
+# this is ignored for all methods except IMAP, use --tls to process
+# TLS reports for other methods
+
+$dbtype = $ENV{DBTYPE} || 'mysql'; # Supported types - mysql, postgres - defaults to mysql if unset
+$dbname = $ENV{DBNAME} || 'dmarc';
+$dbuser = $ENV{DBUSER} || 'dmarc';
+$dbpass = $ENV{DBPASS} || 'password';
+$dbhost = $ENV{DBHOST} || 'localhost'; # Set the hostname if we can't connect to the local socket.
+$dbport = $ENV{DBPORT} || '3306';
+
+$imapserver       = $ENV{IMAPSERVER} || 'imap.server';
+$imapuser         = $ENV{IMAPUSER} || 'username';
+$imappass         = $ENV{IMAPPASS} || 'password';
+$imapport         = $ENV{IMAPPORT} || '143';
+$imapssl          = $ENV{IMAPSSL} || '0'; # If set to 1, remember to change server port to 993 and disable imaptls.
+$imaptls          = $ENV{IMAPTLS} || '0';
+$tlsverify        = $ENV{TLSVERIFY} || '0';
+$imapignoreerror  = $ENV{IMAPIGNOREERROR} || '0'; # recommended if you use MS Exchange 2007, ...
+$imapauth         = $ENV{IMAPAUTH} || 'simple'; # supported - simple, oauth2 - defaults to simple if unset
+
+# see documentation for detailed setup
+$oauthclientid   = $ENV{OAUTHCLIENTID} || ''; 
+$oauthuri        = $ENV{OAUTHURI} || '';
+
+$imapdmarcfolder  = $ENV{IMAPDMARCFOLDER} || 'dmarc';
+$imaptlsfolder    = $ENV{IMAPTLSFOLDER} || 'tls';
+
+# If $imapxxxproc is set, processed IMAP messages will be moved (overruled by
+# the --delete option!)
+if (defined($ENV{IMAPDMARCPROC})) {
+  $imapdmarcproc = $ENV{IMAPDMARCPROC} || 'dmarc.Processed';
+}
+if (defined($ENV{IMAPTLSPROC})) {
+  $imaptlsproc   = $ENV{IMAPTLSPROC} || 'tls.Processed';
+}
+
+# If $imapxxxerr is set, IMAP messages that fail will be moved. If unset, failed messages
+# will move to $imapdmarcproc (if it is set). Overruled by the --delete option!
+if (defined($ENV{IMAPDMARCERR})) {
+  $imapdmarcerr = $ENV{IMAPDMARCERR} || 'dmarc.notProcessed';
+}
+if (defined($ENV{IMAPTLSERR})) {
+  $imaptlserr   = $ENV{IMAPTLSERR} || 'tls.notProcessed';
+}
+
+# maximum size of XML/JSON files to store in database, long files can cause transaction aborts
+$maxsize_xml = $ENV{MAXSIZE_XML} || 50000;
+$maxsize_json = $ENV{MAXSIZE_JSON} || 50000;
+
+# store XML/JSON as base64 encopded gzip in database (save space, harder usable)
+$compress_xml = $ENV{COMPRESS_XML} || 0;
+$compress_json = $ENV{COMPRESS_JSON} || 0;
+
+# if there was an error during file processing (message does not contain XML or ZIP parts, 
+# or a database error) the parser reports an error and does not delete the file, even if 
+# delete_reports is set (or --delete is given). Deletion can be enforced by delete_failed, 
+# however not for database errors.
+$delete_failed = $ENV{DELETE_FAILED} || 0;
